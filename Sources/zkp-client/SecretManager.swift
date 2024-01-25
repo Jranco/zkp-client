@@ -12,6 +12,13 @@ import CryptoKit
 
 /// A protocol defining requirements to execute CRUD operations regarding user's and device's secrets.
 protocol SecretManaging {
+	
+	/// An alphanumeric string that uniquely identifies a device to the app’s vendor.
+	///
+	/// - NOTE: If the value is nil, wait and get the value again later.
+	/// This happens, for example, after the device has been restarted but before the user has unlocked the device.
+	var deviceID: String? { get }
+
 	/// Inserts a new secret safely in keychain or updates an existing one.
 	/// - Parameters:
 	///   - id: A unique identifier of the secret.
@@ -77,18 +84,13 @@ protocol SecretManaging {
 	)
 }
 
-
 public class SecretManager: SecretManaging {
 
-	/// An alphanumeric string that uniquely identifies a device to the app’s vendor.
-	///
-	/// - NOTE: If the value is nil, wait and get the value again later.
-	/// This happens, for example, after the device has been restarted but before the user has unlocked the device.
-	public static var deviceID: UUID? {
-		return UIDevice.current.identifierForVendor
-	}
-
 	// MARK: - SecretManaging
+
+	var deviceID: String? {
+		UIDevice.current.identifierForVendor?.uuidString
+	}
 
 	func upsertSecret<SecretID: Hashable>(
 		with id: SecretID,
