@@ -7,9 +7,10 @@
 
 import Foundation
 import BigInt
+import Combine
 
 /// The basic `Fiat-Shamir` zero-knowledge identification protocol implementation.
-public struct FiatShamir: ZeroKnowledgeProtocol {
+public class FiatShamir: ZeroKnowledgeProtocol {
 
 	// MARK: Secret manager
 
@@ -19,19 +20,30 @@ public struct FiatShamir: ZeroKnowledgeProtocol {
 
 	/// Configuration parameters required by the protocol (i.e. `N` coprime bit length).
 	private let configuration: Config
-
+	/// Establishes and maintains a `web-socket`connection sending the initially requested payload
+	/// and identifying the device based on the given secrets.
+	private let connection: WSConnectionProtocol
+	/// A set storing the `cancellable` subscriber instances.
+	private var cancelBag: Set<AnyCancellable> = []
+	
 	// MARK: - Initialization
 
 	/// Creates an instace of a the basic `Fiat-Shamir` zero-knowledge identification protocol implementation.
 	/// - Parameters:
 	///   - secretManager: An object executing CRUD operations regarding user's and device's secrets.
 	///   - configuration: Configuration parameters required by the protocol (i.e. `N` coprime bit length).
+	///   - connection: Establishes and maintains a `web-socket`connection sending the initially requested payload
+	/// and identifying the device based on the given secrets.
 	init(
 		secretManager: SecretManaging,
-		configuration: Config
+		configuration: Config,
+		connection: WSConnectionProtocol
 	) {
 		self.secretManager = secretManager
 		self.configuration = configuration
+		self.connection = connection
+		/// Set up observers to react on the verfier's requests for proof.
+		setBindings()
 	}
 
 	// MARK: - ZeroKnowledgeProtocol
@@ -43,9 +55,14 @@ public struct FiatShamir: ZeroKnowledgeProtocol {
 		return .init(v: v, n: n.serialize())
 	}
 
-	func register() {
+	func register() throws {
+		connection.start()
+		let publicKey = try self.calculatePublicKey()
+		let payload = RegistrationPayload(protocolType: .fiatShamir, payload: "some-user-payload".data(using: .utf8)!, key: publicKey)
+		let encodedPayload = try JSONEncoder().encode(payload)
+		connection.sendMessage(message: String(data: encodedPayload, encoding: .utf8) ?? "could not encode payload")
 	}
-	
+
 	func initiateIdentification() {
 	}
 }
@@ -79,7 +96,7 @@ public extension FiatShamir {
 public extension FiatShamir {
 	/// The public key.
 	/// Contains the `N` and `v` sub-keys.
-	struct PublicKey {
+	struct PublicKey: Codable {
 		var v: Data
 		var n: Data
 	}
@@ -105,14 +122,13 @@ private extension FiatShamir {
 		guard let deviceID = secretManager.deviceID else {
 			throw FiatShamirError.unavailableDeviceID
 		}
-
-		/// Convert the hexadecimal string into integer.
-		/// If that fails, meaning it's not a hexadecimal, then try with the default base 10.
-		guard let integerValue = UInt64(deviceID, radix: 16) ?? UInt64(deviceID) else {
+		/// Strips the `-` characters.
+		let deviceIDStripped = deviceID.replacingOccurrences(of: "-", with: "")
+		/// Convert the hexadecimal deviceID into a big integer.
+		guard let integerValue = BigUInt.init(deviceIDStripped, radix: 16) ?? BigUInt(deviceIDStripped, radix: 10) else {
 			throw FiatShamirError.couldNotConvertDeviceIDToInteger
 		}
-
-		return BigUInt(integerLiteral: integerValue)
+		return integerValue
 	}
 
 	/// Calculates and returns the protocol's `v` public key.
@@ -126,5 +142,20 @@ private extension FiatShamir {
 		let v = s.power(2, modulus: n)
 		print("V == \(v)")
 		return v.serialize()
+	}
+
+	/// Sets up required observers.
+	/// One of them observes received messages through the `web-socket` connection used
+	/// for the verification process.
+	func setBindings() {
+		connection.incomingMessagePublisher
+			.sink { [weak self] result in
+				print("--- did receive result: \(result)")
+//				self?.connection.stop()
+			} receiveValue: { [weak self] message in
+				print("--- did receive message: \(message)")
+				self?.connection.stop()
+
+			}.store(in: &cancelBag)
 	}
 }

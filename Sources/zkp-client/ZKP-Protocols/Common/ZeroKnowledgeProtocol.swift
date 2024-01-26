@@ -9,7 +9,7 @@ import Foundation
 
 protocol ZeroKnowledgeProtocol {
 	
-	associatedtype Key
+	associatedtype Key: Codable
 
 	/// Executes CRUD operations regarding user's and device's secrets.
 	var secretManager: SecretManaging { get }
@@ -23,7 +23,7 @@ protocol ZeroKnowledgeProtocol {
 	/// Sends initial user registration payload attaching the `ZKP` public key.
 	/// This `ZKP` public key will be used in the follow up authentication requests verifying that the sender is
 	/// an eligible device.
-	func register()
+	func register() throws
 
 	///
 	func initiateIdentification()

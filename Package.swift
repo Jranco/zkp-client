@@ -4,7 +4,8 @@
 import PackageDescription
 
 let package = Package(
-    name: "zkp-client",
+    name: "zkp_client",
+	platforms: [.iOS(.v15)],
     products: [
         .library(
             name: "zkp-client",
