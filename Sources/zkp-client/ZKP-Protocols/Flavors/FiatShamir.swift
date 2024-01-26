@@ -55,10 +55,10 @@ public class FiatShamir: ZeroKnowledgeProtocol {
 		return .init(v: v, n: n.serialize())
 	}
 
-	func register() throws {
+	func register(payload: Data) throws {
 		connection.start()
 		let publicKey = try self.calculatePublicKey()
-		let payload = RegistrationPayload(protocolType: .fiatShamir, payload: "some-user-payload".data(using: .utf8)!, key: publicKey)
+		let payload = RegistrationPayload(protocolType: ZkpFlavor.fiatShamir(config: configuration).name, payload: payload, key: publicKey)
 		let encodedPayload = try JSONEncoder().encode(payload)
 		connection.sendMessage(message: String(data: encodedPayload, encoding: .utf8) ?? "could not encode payload")
 	}
@@ -71,10 +71,14 @@ public class FiatShamir: ZeroKnowledgeProtocol {
 
 public extension FiatShamir {
 	/// Config parameters required by the protocol.
-	struct Config {
+	struct Config: Codable {
 		/// The number of bits of the `N` comprimes.
 		/// - NOTE: An RSA minimum is from 1024 to 2048 bits.
 		var coprimeWidth: Int
+		
+		public init(coprimeWidth: Int) {
+			self.coprimeWidth = coprimeWidth
+		}
 	}
 	/// Error cases thrown by the protocol.
 	enum FiatShamirError: LocalizedError {
@@ -154,7 +158,7 @@ private extension FiatShamir {
 //				self?.connection.stop()
 			} receiveValue: { [weak self] message in
 				print("--- did receive message: \(message)")
-				self?.connection.stop()
+//				self?.connection.stop()
 
 			}.store(in: &cancelBag)
 	}

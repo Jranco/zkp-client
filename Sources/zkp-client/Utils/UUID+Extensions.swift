@@ -14,7 +14,7 @@ extension UUID {
 		let strippedString = uuidString.replacingOccurrences(of: "-", with: "")
 		/// Convert the stripped UUID string to hexadecimal.
 		if let uuidData = Data.init(base64Encoded: strippedString) {
-			let hexString = uuidData.map { String(format: "%02x", $0) }.joined(separator: "") {
+			let hexString = uuidData.map { String(format: "%02x", $0) }.joined(separator: "")
 			return hexString
 		} else {
 			return nil

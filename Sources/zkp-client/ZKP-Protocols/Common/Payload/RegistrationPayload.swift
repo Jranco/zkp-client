@@ -11,7 +11,7 @@ import Foundation
 /// Contains the type of the zero-knowledge protocol to be used to prove the identity of the device along
 /// with a custom payload from the initial request and a public key.
 struct RegistrationPayload<Key: Codable>: Codable {
-	var protocolType: ZkpFlavor
+	var protocolType: String
 	var payload: Data
 	var key: Key
 }

@@ -7,19 +7,28 @@
 
 import Foundation
 
+/// Executes a zero-knowledge identification scheme.
 public struct ZKPClient {
-	
-	let znp: FiatShamir
-	
-	public init() throws {
-		let secretManager = SecretManager()
-		let config = FiatShamir.Config(coprimeWidth: 5)
-		let connection = try WSConnection(config: .init(path: "ws://192.168.178.52:8010/authenticate/"))
-		let znp = FiatShamir(secretManager: secretManager, configuration: config, connection: connection)
-		self.znp = znp
+
+	// MARK: - Private properties
+
+	private var znp: any ZeroKnowledgeProtocol
+
+	// MARK: - Initialization
+
+	/// Creates a client to execute a zero-knowledge identification scheme.
+	/// - Parameters:
+	///   - flavor: The various types of the supported zero-knowledge protocols. The respective configurations may vary, thus the usage of the associated values.
+	///   - conectionConfig: Configuration of the remote `web-socket` service performing the `zkp`identification.
+	public init(
+		flavor: ZkpFlavor,
+		conectionConfig: WSConnectionConfig
+	) throws {
+		let builder = ZKPFlavorBuilder(flavor: flavor, connectionConfig: conectionConfig)
+		self.znp = try builder.createZKP()
 	}
 
-	public func sendRegistration() throws {
+	public func sendRegistration(payload: Data) throws {
 		try znp.register()
 	}
 }

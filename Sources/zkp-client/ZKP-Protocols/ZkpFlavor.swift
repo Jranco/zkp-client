@@ -7,7 +7,14 @@
 
 import Foundation
 
-/// String representation of the various types of the supported zero-knowledge protocols.
-enum ZkpFlavor: String, Codable {
-	case fiatShamir
+/// The various types of the supported zero-knowledge protocols.
+/// The respective configurations may vary, thus the usage of the associated values.
+public enum ZkpFlavor: Codable {
+	case fiatShamir(config: FiatShamir.Config)
+
+	var name: String {
+		switch self {
+		case .fiatShamir(_): return "fiatShamir"
+		}
+	}
 }

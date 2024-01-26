@@ -6,8 +6,11 @@
 //
 
 /// Configuration of the remote `web-socket` service performing the `zkp`identification.
-/// It encapsulates the payload of the request that requires additional device identification.
-struct WSConnectionConfig {
+public struct WSConnectionConfig {
 	/// The target url's path.
 	let path: String
+
+	public init(path: String) {
+		self.path = path
+	}
 }
