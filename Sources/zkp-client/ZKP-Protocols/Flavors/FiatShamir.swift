@@ -55,11 +55,17 @@ public class FiatShamir: ZeroKnowledgeProtocol {
 		return .init(v: v, n: n.serialize())
 	}
 
-	func register(payload: Data) throws {
+	func register(payload: Data, userID: String) throws {
 		connection.start()
+		/// Calculate public key based on secrets and unique device identifiers.
 		let publicKey = try self.calculatePublicKey()
-		let payload = RegistrationPayload(protocolType: ZkpFlavor.fiatShamir(config: configuration).name, payload: payload, key: publicKey)
+		/// Construct the payload to be sent as message.
+		let payload = RegistrationPayload(protocolType: ZkpFlavor.fiatShamir(config: configuration).name,
+										  payload: payload,
+										  userID: userID,
+										  key: publicKey)
 		let encodedPayload = try JSONEncoder().encode(payload)
+		/// Sends the message via a web-socket channel.
 		connection.sendMessage(message: String(data: encodedPayload, encoding: .utf8) ?? "could not encode payload")
 	}
 

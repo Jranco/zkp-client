@@ -28,7 +28,12 @@ public struct ZKPClient {
 		self.znp = try builder.createZKP()
 	}
 
-	public func sendRegistration(payload: Data) throws {
-		try znp.register()
+	/// Executes a `registration` request.
+	/// Along with the registration payload it sends initial device secrets to be able to execute the identification scheme later during authentication.
+	/// - Parameters:
+	///   - payload: The registration payload required by the target api.
+	///   - userID: Unique user identifier.
+	public func sendRegistration(payload: Data, userID: String) throws {
+		try znp.register(payload: payload, userID: userID)
 	}
 }
