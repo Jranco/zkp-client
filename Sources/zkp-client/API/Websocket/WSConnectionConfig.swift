@@ -6,11 +6,8 @@
 //
 
 /// Configuration of the remote `web-socket` service performing the `zkp`identification.
-public struct WSConnectionConfig {
-	/// The target url's path.
-	let path: String
-
-	public init(path: String) {
-		self.path = path
-	}
+protocol WSConnectionConfig {
+	associatedtype PayloadType: Codable
+	var base: String { get }
+	var path: String { get }
 }

@@ -11,11 +11,11 @@ import Foundation
 struct FiatShamirFactory: ZKPFlavorFactoryProtocol {
 	/// Config parameters required by the protocol.
 	var zkpConfig: FiatShamir.Config
-	/// Configuration of the remote `web-socket` service performing the `zkp`identification.
-	var connectionConfig: WSConnectionConfig
+	/// Configuration of the remote service performing the `zkp`identification.
+	var connectionConfig: ZKPClient.Config
 
 	func createZKP() throws -> any ZeroKnowledgeProtocol {
-		let connection = try WSConnection(config: connectionConfig)
-		return FiatShamir(secretManager: SecretManager(), configuration: zkpConfig, connection: connection)
+//		let connection = try WSConnection(config: connectionConfig, path: "/register")
+		return try FiatShamir(secretManager: SecretManager(), configuration: zkpConfig, config: connectionConfig)
 	}
 }

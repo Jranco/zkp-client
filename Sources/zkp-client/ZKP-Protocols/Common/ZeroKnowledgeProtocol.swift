@@ -26,7 +26,7 @@ protocol ZeroKnowledgeProtocol {
 	/// - Parameters:
 	///   - payload: The registration payload required by the target api.
 	///   - userID: Unique user identifier.
-	func register(payload: Data, userID: String) throws
+	func register(payload: Data, userID: String) async throws
 
 	func initiateIdentification()	
 }

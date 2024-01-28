@@ -11,8 +11,8 @@ import Foundation
 struct ZKPFlavorBuilder: ZKPFlavorFactoryProtocol {
 	/// The type of the supported zero-knowledge protocols. It contains additional required configuration.
 	var flavor: ZkpFlavor
-	/// Configuration of the remote `web-socket` service performing the `zkp`identification.
-	var connectionConfig: WSConnectionConfig
+	/// Configuration of the remote service performing the `zkp`identification.
+	var connectionConfig: ZKPClient.Config
 	/// Returns the respective `zero-knowledge` flavor implementation.
 	var factory: ZKPFlavorFactoryProtocol {
 		switch flavor {

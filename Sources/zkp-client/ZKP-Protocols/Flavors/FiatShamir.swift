@@ -22,7 +22,7 @@ public class FiatShamir: ZeroKnowledgeProtocol {
 	private let configuration: Config
 	/// Establishes and maintains a `web-socket`connection sending the initially requested payload
 	/// and identifying the device based on the given secrets.
-	private let connection: WSConnectionProtocol
+	private let registrationConnection: WSConnection<WSUserAuthenticationResponse>
 	/// A set storing the `cancellable` subscriber instances.
 	private var cancelBag: Set<AnyCancellable> = []
 	
@@ -37,11 +37,12 @@ public class FiatShamir: ZeroKnowledgeProtocol {
 	init(
 		secretManager: SecretManaging,
 		configuration: Config,
-		connection: WSConnectionProtocol
-	) {
+		config: ZKPClient.Config
+	) throws {
 		self.secretManager = secretManager
 		self.configuration = configuration
-		self.connection = connection
+		let registrationConnectionConfig = WSUserAuthentication(base: config.baseURL, path: "/authenticate/")
+		self.registrationConnection = try WSConnection(config: registrationConnectionConfig)
 		/// Set up observers to react on the verfier's requests for proof.
 		setBindings()
 	}
@@ -55,8 +56,8 @@ public class FiatShamir: ZeroKnowledgeProtocol {
 		return .init(v: v, n: n.serialize())
 	}
 
-	func register(payload: Data, userID: String) throws {
-		connection.start()
+	func register(payload: Data, userID: String) async throws {
+		registrationConnection.start()
 		/// Calculate public key based on secrets and unique device identifiers.
 		let publicKey = try self.calculatePublicKey()
 		/// Construct the payload to be sent as message.
@@ -66,7 +67,12 @@ public class FiatShamir: ZeroKnowledgeProtocol {
 										  key: publicKey)
 		let encodedPayload = try JSONEncoder().encode(payload)
 		/// Sends the message via a web-socket channel.
-		connection.sendMessage(message: String(data: encodedPayload, encoding: .utf8) ?? "could not encode payload")
+		registrationConnection.sendMessage(message: String(data: encodedPayload, encoding: .utf8) ?? "could not encode payload")
+		
+//		var request = UserRegistration(base: "http://192.168.178.52:8011", path: "/register")
+//		request.fbody = encodedPayload
+//		let response = try await request.execute()
+//		print("response: \(response)")
 	}
 
 	func initiateIdentification() {
@@ -158,7 +164,7 @@ private extension FiatShamir {
 	/// One of them observes received messages through the `web-socket` connection used
 	/// for the verification process.
 	func setBindings() {
-		connection.incomingMessagePublisher
+		registrationConnection.incomingMessagePublisher
 			.sink { [weak self] result in
 				print("--- did receive result: \(result)")
 //				self?.connection.stop()

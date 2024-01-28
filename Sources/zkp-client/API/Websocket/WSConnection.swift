@@ -10,28 +10,35 @@ import Foundation
 
 /// Establishes and maintains a `web-socket`connection sending the initially requested payload
 /// and identifying the device based on the given secrets.
-final class WSConnection: WSConnectionProtocol {
+final class WSConnection<ResponsePayload: Codable>: WSConnectionProtocol {
 
 	// MARK: - WSConnectionProtocol
 
-	var incomingMessagePublisher: AnyPublisher<String, Error> {
-		subject.eraseToAnyPublisher()
+	var incomingMessagePublisher: AnyPublisher<ResponsePayload, Error> {
+		messageSubject.eraseToAnyPublisher()
 	}
+	
+	var statePublisher: AnyPublisher<WSConnectionState, Never> {
+		$state.eraseToAnyPublisher()
+	}
+
+	@Published private(set) var state: WSConnectionState
 
 	// MARK: - Private properties
 
 	private var webSocketTask: URLSessionWebSocketTask
-	private var subject = PassthroughSubject<String, Error>()
-	private var config: WSConnectionConfig
+	private var messageSubject = PassthroughSubject<ResponsePayload, Error>()
+	private var config: any WSConnectionConfig
 	
 	// MARK: - Initialization
 	
-	init(config: WSConnectionConfig) throws {
+	init(config: any WSConnectionConfig) throws {
 		self.config = config
+		self.state = .idle
 		let urlSession = URLSession(configuration: .default)
 		/// Continue only if the url is valid.
 		/// Throw respective error in other case to inform the caller injecting the configuration.
-		guard let url = URL(string: config.path) else {
+		guard let url = URL(string: config.base+config.path) else {
 			throw WSConnectionError.invalidURL
 		}
 
@@ -42,19 +49,23 @@ final class WSConnection: WSConnectionProtocol {
 	// MARK: - WSConnectionProtocol
 
 	func start() {
+		self.state = .started
 		webSocketTask.resume()
 	}
 
 	func stop() {
+		self.state = .idle
 		webSocketTask.cancel(with: .goingAway, reason: nil)
 	}
 
 	func sendMessage(message: String) {
+		self.state = .active
 		webSocketTask.send(.string(message), completionHandler: { _ in
 		})
 	}
 
 	func sendMessage(message: Data) {
+		self.state = .active
 		webSocketTask.send(.data(message), completionHandler: { _ in
 		})
 	}
@@ -68,12 +79,21 @@ final class WSConnection: WSConnectionProtocol {
 				switch success {
 				case .data(_): break
 				case .string(let responseMessage):
-					self?.subject.send(responseMessage)
+					if let data = responseMessage.data(using: .utf8) {
+						do {
+							let decodedData: ResponsePayload = try JSONDecoder().decode(ResponsePayload.self, from: data)
+							self?.messageSubject.send(decodedData)
+						} catch {
+							self?.messageSubject.send(completion: .failure(error))
+						}
+					} else {
+						self?.messageSubject.send(completion: .failure(WSConnectionError.malformedResponseData))
+					}
 				@unknown default: break
 				}
 			case .failure(let failure):
 				print("failure: \(failure)")
-				self?.subject.send(completion: .failure(failure))
+				self?.messageSubject.send(completion: .failure(failure))
 			}
 			// TODO: check if the following redeclaration is needed
 //			self?.setupBindings()
@@ -85,11 +105,14 @@ extension WSConnection {
 	/// Errors thrown by the `WSConnection`.
 	enum WSConnectionError: LocalizedError {
 		case invalidURL
+		case malformedResponseData
 		
 		var errorDescription: String? {
 			switch self {
 			case .invalidURL:
 				return "Could not create the target url from the given config's path"
+			case .malformedResponseData:
+				return "Data could not be deserialized"
 			}
 		}
 	}

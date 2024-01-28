@@ -10,9 +10,13 @@ import Foundation
 
 /// A protocol describing the requirements to establish and maintain a `web-socket`connection.
 protocol WSConnectionProtocol {
-	/// Publisher emitting new messages received by an open web-socket connection.
-	var incomingMessagePublisher: AnyPublisher<String, Error> { get }
+	associatedtype PayloadType: Codable
 
+	/// Publisher emitting new messages received by an open web-socket connection.
+	var incomingMessagePublisher: AnyPublisher<PayloadType, Error> { get }
+	/// Publisher emitting state updates received of an open web-socket connection.
+	var statePublisher: AnyPublisher<WSConnectionState, Never> { get }
+	var state: WSConnectionState { get }
 	/// Triggers a handshake establishing the web-socket connection.
 	func start()
 	/// Terminates the open web-socket connection if it exists.

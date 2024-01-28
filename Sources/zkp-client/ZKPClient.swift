@@ -22,9 +22,9 @@ public struct ZKPClient {
 	///   - conectionConfig: Configuration of the remote `web-socket` service performing the `zkp`identification.
 	public init(
 		flavor: ZkpFlavor,
-		conectionConfig: WSConnectionConfig
+		config: Config
 	) throws {
-		let builder = ZKPFlavorBuilder(flavor: flavor, connectionConfig: conectionConfig)
+		let builder = ZKPFlavorBuilder(flavor: flavor, connectionConfig: config)
 		self.znp = try builder.createZKP()
 	}
 
@@ -34,6 +34,27 @@ public struct ZKPClient {
 	///   - payload: The registration payload required by the target api.
 	///   - userID: Unique user identifier.
 	public func sendRegistration(payload: Data, userID: String) throws {
-		try znp.register(payload: payload, userID: userID)
+		Task {
+			do {
+				try await znp.register(payload: payload, userID: userID)
+				print("--- did register with success")
+			} catch {
+				print("--- error registering: \(error.localizedDescription)")
+			}
+		}
+	}
+}
+
+protocol ConnectionConfig {
+	var baseURL: String {get }
+}
+
+public extension ZKPClient {
+	struct Config: ConnectionConfig {
+		let baseURL: String
+		
+		public init(baseURL: String) {
+			self.baseURL = baseURL
+		}
 	}
 }
