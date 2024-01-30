@@ -27,13 +27,18 @@ final class FiatShamirTests: XCTestCase {
 		print("data: \(data)")
 //		let int = UINT
 		
-		let n = BigUInt(integerLiteral: 468)
+		let n = BigUInt.randomInteger(withExactWidth: 1024)
+		print("ïnit n: \(n)")
 		let serialized = n.serialize()
 		let deserialized = serialized.base64EncodedString()
 		print("deserialized: \(deserialized)")
-//		let intDes = BigInt.ini
+//		let intDes = BigUInt.init(String(data: serialized, encoding: .utf8)!, radix: 256)
+//		print("intDes: \(intDes)")
 		
-		
+//		let reversedBytes = serialized.reversed().map { UInt8(String($0))! }
+		let final = BigUInt(serialized)
+		print("final: \(final)")
+
 		
 	}
 }

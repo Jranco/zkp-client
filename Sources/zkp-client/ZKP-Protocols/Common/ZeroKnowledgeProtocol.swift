@@ -28,5 +28,5 @@ protocol ZeroKnowledgeProtocol {
 	///   - userID: Unique user identifier.
 	func register(payload: Data, userID: String) async throws
 
-	func initiateIdentification()	
+	func authenticate(payload: Data, userID: String) async throws
 }

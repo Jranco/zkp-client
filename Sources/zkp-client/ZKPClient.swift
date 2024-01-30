@@ -43,6 +43,21 @@ public struct ZKPClient {
 			}
 		}
 	}
+
+	/// Executes an `authentication` request.
+	/// Along with the authentication payload it sends device's public key to be able to select the already `binded` device and initate the `zkp` verification process.
+	/// - Parameters:
+	///   - payload: The registration payload required by the target api.
+	///   - userID: Unique user identifier.
+	public func sendAuthentication(payload: Data, userID: String) throws {
+		Task {
+			do {
+				try await znp.authenticate(payload: payload, userID: userID)
+			} catch {
+				print("--- error authenticating: \(error.localizedDescription)")
+			}
+		}
+	}
 }
 
 protocol ConnectionConfig {

@@ -22,10 +22,14 @@ public class FiatShamir: ZeroKnowledgeProtocol {
 	private let configuration: Config
 	/// Establishes and maintains a `web-socket`connection sending the initially requested payload
 	/// and identifying the device based on the given secrets.
-	private let registrationConnection: WSConnection<WSUserAuthenticationResponse>
+	private let authenticationConnection: WSConnection<WSUserAuthenticationResponse>
 	/// A set storing the `cancellable` subscriber instances.
 	private var cancelBag: Set<AnyCancellable> = []
 	
+	private var userID: String = ""
+	private var initiatingRandomNum: BigUInt?
+	
+	var counter = 0
 	// MARK: - Initialization
 
 	/// Creates an instace of a the basic `Fiat-Shamir` zero-knowledge identification protocol implementation.
@@ -41,8 +45,8 @@ public class FiatShamir: ZeroKnowledgeProtocol {
 	) throws {
 		self.secretManager = secretManager
 		self.configuration = configuration
-		let registrationConnectionConfig = WSUserAuthentication(base: config.baseURL, path: "/authenticate/")
-		self.registrationConnection = try WSConnection(config: registrationConnectionConfig)
+		let authenticationConnectionConfig = WSUserAuthentication(base: config.baseURL, path: "/authenticate/")
+		self.authenticationConnection = try WSConnection(config: authenticationConnectionConfig)
 		/// Set up observers to react on the verfier's requests for proof.
 		setBindings()
 	}
@@ -53,11 +57,10 @@ public class FiatShamir: ZeroKnowledgeProtocol {
 		let n = calculateN()
 		let v = try calculateV()
 		print("N == \(n)")
-		return .init(v: v, n: n.serialize())
+		return .init(vKey: v, nKey: n.serialize())
 	}
 
 	func register(payload: Data, userID: String) async throws {
-		registrationConnection.start()
 		/// Calculate public key based on secrets and unique device identifiers.
 		let publicKey = try self.calculatePublicKey()
 		/// Construct the payload to be sent as message.
@@ -66,16 +69,92 @@ public class FiatShamir: ZeroKnowledgeProtocol {
 										  userID: userID,
 										  key: publicKey)
 		let encodedPayload = try JSONEncoder().encode(payload)
-		/// Sends the message via a web-socket channel.
-		registrationConnection.sendMessage(message: String(data: encodedPayload, encoding: .utf8) ?? "could not encode payload")
 		
-//		var request = UserRegistration(base: "http://192.168.178.52:8011", path: "/register")
-//		request.fbody = encodedPayload
-//		let response = try await request.execute()
-//		print("response: \(response)")
+		var request = UserRegistration(base: "http://192.168.178.52:8012", path: "/register")
+		request.body = encodedPayload
+		let response = try await request.execute()
+		if let httpResponse = response.1 as? HTTPURLResponse {
+			if httpResponse.statusCode == 200 {
+				print("--- FiatShamir.register... new user registered!!")
+				do {
+					let publicKeyData = try JSONEncoder().encode(publicKey)
+					try KeychainManager(userID: userID).upsert(key: "zkn_public_key", value: publicKeyData)
+					
+					let v = BigUInt(publicKey.vKey)
+					let n = BigUInt(publicKey.nKey)
+					print("Storing: v: \(v)\n\n n: \(n)\n\n")
+					try storeDevice(key: publicKey, for: userID)
+					print("--- Did store new credential to Keychain")
+				} catch {
+					print("--- eror storing to Keychain: \(error)")
+				}
+			} else {
+				print("--- FiatShamir.register... user exists")
+			}
+		}
 	}
+	
+	private func storeDevice(key: PublicKey, for userID: String) throws {
+		let keychainManager = KeychainManager(userID: userID)
+		try keychainManager.upsert(key: FiatShamirKeyName.v, value: key.vKey)
+		try keychainManager.upsert(key: FiatShamirKeyName.n, value: key.nKey)
+	}
+	
+	private func fetchDeviceKey(for userID: String) throws -> PublicKey {
+//		return PublicKey.init(vKey: "15317863943589982770986920780069053352999237741553376898752737276518602390889".data(using: .utf8)!, nKey: "1524083716391953882736655959340008309129638832490506884428914582716591495289377623515064734527705230122527285649882859269".data(using: .utf8)!)
+				let keychainManager = KeychainManager(userID: userID)
+				let storedDataV = try keychainManager.getValue(key: FiatShamirKeyName.v)
+				let storedDataN = try keychainManager.getValue(key: FiatShamirKeyName.n)
+			
+				return .init(vKey: storedDataV, nKey: storedDataN)
+	}
+	func authenticate(payload: Data, userID: String) async throws {
+		authenticationConnection.start()
+//		let keyData = try? KeychainManager(userID: self.userID).getValue(key: "zkn_public_key")
+////							print("=+++ the private keys: \keyData")
+//		let keyDecoded = try? JSONDecoder().decode(PublicKey.self, from: keyData!)
+//		let v = BigUInt(keyDecoded!.vKey)
+//		let n = BigUInt(keyDecoded!.nKey)
+		// TODO: Throw error in case device is not binded
+		let publicKey = try fetchDeviceKey(for: userID)
+		let v = BigUInt(publicKey.vKey)
+		let n = BigUInt(publicKey.nKey)
+		
+//		print("--- found existin v: \(v)\n\nand existing n: \(n)\n\n")
 
-	func initiateIdentification() {
+//		authenticationConnection.incomingMessagePublisher.sink { _ in
+//		} receiveValue: { [weak self] response in
+//			switch response.state {
+//			case .pendingVerification: break
+//			case .didVerifyWithSuccess:
+//				print("--- Device is verified!!!")
+//			case .didFailToVerify:
+//				print("--- Did fail to verify device!!!")
+//			case .verificationInProgress:
+//				if let challenge = response.challenge {
+//					
+//				} else {
+//					// TODO: throw error
+//					print("--- Error, did start verification process but challenge is missing")
+//				}
+//			}
+//		}
+		self.userID = userID
+		/// Calculate number that initiates the verification process.
+		let r = BigUInt.randomInteger(withExactWidth: configuration.coprimeWidth/2)
+		let initiatingRandomNum = r.power(2, modulus: n)
+		self.initiatingRandomNum = r
+		print("-- did creating init random num: \(initiatingRandomNum)")
+		/// Construct the payload to be sent as message.
+		let payload = AuthenticationPayload(protocolType: ZkpFlavor.fiatShamir(config: configuration).name,
+											payload: payload,
+											userID: userID,
+											key: publicKey, 
+											initiatingNum: initiatingRandomNum.serialize(), 
+											challengeResponse: Data())
+		let encodedPayload = try JSONEncoder().encode(payload)
+		/// Sends an authentication request initiating the `zkp` verification process.
+		authenticationConnection.sendMessage(message: String(data: encodedPayload, encoding: .utf8) ?? "could not encode payload")
 	}
 }
 
@@ -113,8 +192,8 @@ public extension FiatShamir {
 	/// The public key.
 	/// Contains the `N` and `v` sub-keys.
 	struct PublicKey: Codable {
-		var v: Data
-		var n: Data
+		var vKey: Data
+		var nKey: Data
 	}
 }
 
@@ -123,9 +202,19 @@ public extension FiatShamir {
 private extension FiatShamir {
 	/// Calculates and returns the `N` (p x q) number that constitutes the public key.
 	func calculateN() -> BigUInt {
-		let p = BigUInt.randomInteger(withExactWidth: configuration.coprimeWidth)
-		let q = BigUInt.randomInteger(withExactWidth: configuration.coprimeWidth)
+		let p = generatePrime(configuration.coprimeWidth)//BigUInt.randomInteger(withExactWidth: configuration.coprimeWidth)
+		let q = generatePrime(configuration.coprimeWidth) //BigUInt.randomInteger(withExactWidth: configuration.coprimeWidth)
 		return p.multiplied(by: q)
+	}
+
+	func generatePrime(_ width: Int) -> BigUInt {
+		while true {
+			var random = BigUInt.randomInteger(withExactWidth: width)
+			random |= BigUInt(1)
+			if random.isPrime() {
+				return random
+			}
+		}
 	}
 
 	/// Calculates and returns the `s` number that constitutes the private key.
@@ -164,13 +253,61 @@ private extension FiatShamir {
 	/// One of them observes received messages through the `web-socket` connection used
 	/// for the verification process.
 	func setBindings() {
-		registrationConnection.incomingMessagePublisher
+		authenticationConnection.incomingMessagePublisher
 			.sink { [weak self] result in
-				print("--- did receive result: \(result)")
-//				self?.connection.stop()
-			} receiveValue: { [weak self] message in
-				print("--- did receive message: \(message)")
-//				self?.connection.stop()
+				self?.authenticationConnection.stop()
+				print("--- incomingMessagePublisher result: \(result)")
+			} receiveValue: { [weak self] response in
+				switch response.state {
+				case .pendingVerification: 
+					print("--- incomingMessagePublisher.pendingVerification")
+				case .didVerifyWithSuccess:
+					print("--- incomingMessagePublisher.didVerifyWithSuccess")
+					self?.authenticationConnection.stop()
+				case .didFailToVerify:
+					print("--- incomingMessagePublisher.didFailToVerify")
+					self?.authenticationConnection.stop()
+				case .verificationInProgress:
+					print("--- incomingMessagePublisher.verificationInProgress")
+
+					if let self = self {
+						if let challenge = response.challenge {
+							if let initiatingRandomNum = initiatingRandomNum {
+								if let secret = try? calculateSecret() {
+									let keyData = try? KeychainManager(userID: self.userID).getValue(key: "zkn_public_key")
+									////							print("=+++ the private keys: \keyData")
+									let keyDecoded = try? JSONDecoder().decode(PublicKey.self, from: keyData!)
+									let v = BigUInt(keyDecoded!.vKey)
+									let n = BigUInt(keyDecoded!.nKey)
+									print("!!!!!! ee: \(challenge)")
+									let secretPower = secret.power(challenge)
+									let yy = self.initiatingRandomNum?.multiplied(by: secretPower)
+									let y = yy!.power(1, modulus: n)
+									print("-- y:\(y)")
+									print("-- yˆ2modN = \(y.power(2))")
+//									print("-- yˆ2modN = \(y.power(2, modulus: n))")
+//									let xu = (self.initiatingRandomNum!.multiplied(by: v)).power(1, modulus: n)
+									let rr = self.initiatingRandomNum!.power(2, modulus: n)
+									let xu = (rr.multiplied(by: v.power(challenge)))
+									print("-- xu = \(xu)")
+									let challengeResponse = ChallengePayload(challengeResponse: y.serialize())
+									let encodedPayload = try! JSONEncoder().encode(challengeResponse)
+									/// Sends an authentication request initiating the `zkp` verification process.
+									authenticationConnection.sendMessage(message: String(data: encodedPayload, encoding: .utf8) ?? "could not encode payload")
+									
+									//							print("v: \(v)\n\n n: \(n)\n\n")
+									
+								}
+							} else {
+								print("--- Error, is missing initial random number `r`")
+							}
+						} else {
+							// TODO: throw error
+							print("--- Error, did start verification process but challenge is missing")
+						}
+					}
+				}
+//				self?.setBindings()
 
 			}.store(in: &cancelBag)
 	}

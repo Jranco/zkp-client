@@ -9,7 +9,7 @@ import Foundation
 import BigInt
 
 /// Executes CRUD operations in secure storage.
-public struct KeychainManager: KeychainManaging {
+struct KeychainManager: KeychainManaging {
 	
 	// MARK: Private properties
 
@@ -21,13 +21,13 @@ public struct KeychainManager: KeychainManaging {
 	/// Creates an instance of a `KeychainManager` executing CRUD operation in secure storage.
 	/// - Parameters:
 	///   - userID: The unique user identifier used to distinguish storage context.
-	public init(userID: String) {
+	init(userID: String) {
 		self.userID = userID
 	}
-	
+
 	// MARK: KeychainManaging
 
-	public func upsert(key: String, value: Data) throws {
+	func upsert(key: String, value: Data) throws {
 		var query = Self.createQuery(for: key, userID: userID)
 		let status = SecItemCopyMatching(query as CFDictionary, nil)
 		switch status {
@@ -71,30 +71,33 @@ public struct KeychainManager: KeychainManaging {
 		}
 	}
 	
-	public func getValue(key: String) throws -> Data? {
-		// Define the query to search for the item in the Keychain
+	func getValue(key: String) throws -> Data {
 		let query: [String: Any] = [
 			kSecClass as String: kSecClassGenericPassword,
 			kSecAttrService as String: key,
 			kSecMatchLimit as String: kSecMatchLimitOne,
 			kSecReturnAttributes as String: kCFBooleanTrue!,
-			kSecReturnData as String: kCFBooleanTrue!
+			kSecReturnData as String: kCFBooleanTrue!,
+			kSecAttrAccount as String: userID as CFString
 		]
 
 		var queryResult: AnyObject?
 		let status = SecItemCopyMatching(query as CFDictionary, &queryResult)
 
-		guard status == errSecSuccess, let resultDict = queryResult as? [String: Any] else {
-			print("Error retrieving item from Keychain: \(status)")
-			return nil
+		guard
+			status == errSecSuccess,
+			let resultDict = queryResult as? [String: Any]
+		else {
+			throw KeychainManagerError.didFailToRetrieveValueForKey
 		}
 
-		// Extract the value from the result dictionary
-		if let data = resultDict[kSecValueData as String] as? Data {
-			return data
+		guard
+			let data = resultDict[kSecValueData as String] as? Data
+		else {
+			throw KeychainManagerError.retrievedDataMalformed
 		}
 
-		return nil
+		return data
 	}
 
 	func remove(key: String, value: Data) throws {
@@ -118,5 +121,12 @@ public struct KeychainManager: KeychainManaging {
 			 kSecAttrAccount as String: userID as CFString
 		 ]
 		return query
+	}
+}
+
+extension KeychainManager {
+	enum KeychainManagerError: Error {
+		case didFailToRetrieveValueForKey
+		case retrievedDataMalformed
 	}
 }

@@ -50,6 +50,7 @@ final class WSConnection<ResponsePayload: Codable>: WSConnectionProtocol {
 
 	func start() {
 		self.state = .started
+//		setupBindings() 
 		webSocketTask.resume()
 	}
 
@@ -91,12 +92,13 @@ final class WSConnection<ResponsePayload: Codable>: WSConnectionProtocol {
 					}
 				@unknown default: break
 				}
+				self?.setupBindings()
 			case .failure(let failure):
 				print("failure: \(failure)")
+				self?.stop()
 				self?.messageSubject.send(completion: .failure(failure))
 			}
-			// TODO: check if the following redeclaration is needed
-//			self?.setupBindings()
+
 		}
 	}
 }
