@@ -8,14 +8,21 @@
 import Foundation
 
 /// A factory creating an instance of the basic `Fiat-Shamir` zero-knowledge protocol flavor.
+/// The `factory method` returns the respective `ZeroKnowledgeProtocol` implementation.
 struct FiatShamirFactory: ZKPFlavorFactoryProtocol {
 	/// Config parameters required by the protocol.
 	var zkpConfig: FiatShamir.Config
-	/// Configuration of the remote service performing the `zkp`identification.
-	var connectionConfig: ZKPClient.Config
+	/// Remote server configuration providing the `api`  and `websocket` services.
+	var apiConfig: APIConfigurating
+	/// Unique user identifier.
+	var userID: String
 
 	func createZKP() throws -> any ZeroKnowledgeProtocol {
-//		let connection = try WSConnection(config: connectionConfig, path: "/register")
-		return try FiatShamir(secretManager: SecretManager(), configuration: zkpConfig, config: connectionConfig)
+		try FiatShamir(
+			userID: userID,
+			secretManager: SecretManager(),
+			configuration: zkpConfig,
+			apiConfig: apiConfig
+		)
 	}
 }

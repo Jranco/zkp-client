@@ -11,13 +11,19 @@ import Foundation
 struct ZKPFlavorBuilder: ZKPFlavorFactoryProtocol {
 	/// The type of the supported zero-knowledge protocols. It contains additional required configuration.
 	var flavor: ZkpFlavor
-	/// Configuration of the remote service performing the `zkp`identification.
-	var connectionConfig: ZKPClient.Config
+	/// Remote server configuration providing the `api`  and `websocket` services.
+	var apiConfig: APIConfigurating
+	/// Unique user identifier.
+	var userID: String
 	/// Returns the respective `zero-knowledge` flavor implementation.
 	var factory: ZKPFlavorFactoryProtocol {
 		switch flavor {
 		case .fiatShamir(let config):
-			FiatShamirFactory(zkpConfig: config, connectionConfig: connectionConfig)
+			FiatShamirFactory(
+				zkpConfig: config,
+				apiConfig: apiConfig,
+				userID: userID
+			)
 		}
 	}
 

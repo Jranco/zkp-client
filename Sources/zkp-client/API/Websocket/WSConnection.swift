@@ -17,7 +17,7 @@ final class WSConnection<ResponsePayload: Codable>: WSConnectionProtocol {
 	var incomingMessagePublisher: AnyPublisher<ResponsePayload, Error> {
 		messageSubject.eraseToAnyPublisher()
 	}
-	
+
 	var statePublisher: AnyPublisher<WSConnectionState, Never> {
 		$state.eraseToAnyPublisher()
 	}
@@ -29,7 +29,7 @@ final class WSConnection<ResponsePayload: Codable>: WSConnectionProtocol {
 	private var webSocketTask: URLSessionWebSocketTask
 	private var messageSubject = PassthroughSubject<ResponsePayload, Error>()
 	private var config: any WSConnectionConfig
-	
+
 	// MARK: - Initialization
 	
 	init(config: any WSConnectionConfig) throws {
@@ -50,13 +50,12 @@ final class WSConnection<ResponsePayload: Codable>: WSConnectionProtocol {
 
 	func start() {
 		self.state = .started
-//		setupBindings() 
 		webSocketTask.resume()
 	}
 
 	func stop() {
 		self.state = .idle
-		webSocketTask.cancel(with: .goingAway, reason: nil)
+		webSocketTask.cancel(with: .normalClosure, reason: nil)
 	}
 
 	func sendMessage(message: String) {
@@ -94,11 +93,9 @@ final class WSConnection<ResponsePayload: Codable>: WSConnectionProtocol {
 				}
 				self?.setupBindings()
 			case .failure(let failure):
-				print("failure: \(failure)")
 				self?.stop()
 				self?.messageSubject.send(completion: .failure(failure))
 			}
-
 		}
 	}
 }

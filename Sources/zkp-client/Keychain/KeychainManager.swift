@@ -32,12 +32,10 @@ struct KeychainManager: KeychainManaging {
 		let status = SecItemCopyMatching(query as CFDictionary, nil)
 		switch status {
 		case errSecSuccess:
-			
 			// Item exists, update
 			let updatedQuery: [String: Any] = [
 				kSecValueData as String: value
 			]
-
 			/// Update the item in the Keychain
 			let updateStatus = SecItemUpdate(query as CFDictionary, updatedQuery as CFDictionary)
 
@@ -47,15 +45,6 @@ struct KeychainManager: KeychainManaging {
 				print("Keychain item updated successfully")
 			}
 		case errSecItemNotFound:
-			// Item doesn't exist, add a new item
-			  let addQuery: [String: Any] = [
-				  kSecClass as String: kSecClassGenericPassword,
-				  kSecAttrService as String: key,
-				  kSecValueData as String: value,
-				  kSecAttrSynchronizable as String: kCFBooleanFalse!,
-				  kSecAttrAccount as String: userID
-			  ]
-			
 			query[kSecValueData as String] = value
 			
 			// Add the item to the Keychain
@@ -115,8 +104,6 @@ struct KeychainManager: KeychainManaging {
 			 kSecClass as String: kSecClassGenericPassword,
 			 kSecAttrService as String: key as CFString,
 //			 kSecMatchLimit as String: kSecMatchLimitOne,
-//			 kSecReturnAttributes as String: kCFBooleanTrue!,
-//			 kSecReturnData as String: kCFBooleanTrue!,
 			 kSecAttrSynchronizable as String: kCFBooleanFalse!,
 			 kSecAttrAccount as String: userID as CFString
 		 ]

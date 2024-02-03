@@ -25,27 +25,28 @@ public class FiatShamir: ZeroKnowledgeProtocol {
 	private let authenticationConnection: WSConnection<WSUserAuthenticationResponse>
 	/// A set storing the `cancellable` subscriber instances.
 	private var cancelBag: Set<AnyCancellable> = []
-	
-	private var userID: String = ""
+	/// Unique user identifier.
+	private var userID: String
 	private var initiatingRandomNum: BigUInt?
-	
-	var counter = 0
+
 	// MARK: - Initialization
 
 	/// Creates an instace of a the basic `Fiat-Shamir` zero-knowledge identification protocol implementation.
 	/// - Parameters:
+	///   - userID: Unique user identifier.
 	///   - secretManager: An object executing CRUD operations regarding user's and device's secrets.
 	///   - configuration: Configuration parameters required by the protocol (i.e. `N` coprime bit length).
-	///   - connection: Establishes and maintains a `web-socket`connection sending the initially requested payload
-	/// and identifying the device based on the given secrets.
+	///   - apiConfig: Remote server configuration providing the `api`  and `websocket` services.
 	init(
+		userID: String,
 		secretManager: SecretManaging,
 		configuration: Config,
-		config: ZKPClient.Config
+		apiConfig: APIConfigurating
 	) throws {
+		self.userID = userID
 		self.secretManager = secretManager
 		self.configuration = configuration
-		let authenticationConnectionConfig = WSUserAuthentication(base: config.baseURL, path: "/authenticate/")
+		let authenticationConnectionConfig = WSUserAuthentication(base: apiConfig.baseURL, path: "/authenticate/")
 		self.authenticationConnection = try WSConnection(config: authenticationConnectionConfig)
 		/// Set up observers to react on the verfier's requests for proof.
 		setBindings()
@@ -53,16 +54,15 @@ public class FiatShamir: ZeroKnowledgeProtocol {
 
 	// MARK: - ZeroKnowledgeProtocol
 	
-	func calculatePublicKey() throws -> PublicKey {
-		let n = calculateN()
-		let v = try calculateV()
-		print("N == \(n)")
+	func generatePublicKey() throws -> PublicKey {
+		let n = generatePublicKeyN()
+		let v = try generatePublicKeyV(n: n)
 		return .init(vKey: v, nKey: n.serialize())
 	}
 
-	func register(payload: Data, userID: String) async throws {
+	func register(payload: Data) async throws {
 		/// Calculate public key based on secrets and unique device identifiers.
-		let publicKey = try self.calculatePublicKey()
+		let publicKey = try self.generatePublicKey()
 		/// Construct the payload to be sent as message.
 		let payload = RegistrationPayload(protocolType: ZkpFlavor.fiatShamir(config: configuration).name,
 										  payload: payload,
@@ -75,7 +75,6 @@ public class FiatShamir: ZeroKnowledgeProtocol {
 		let response = try await request.execute()
 		if let httpResponse = response.1 as? HTTPURLResponse {
 			if httpResponse.statusCode == 200 {
-				print("--- FiatShamir.register... new user registered!!")
 				do {
 					let publicKeyData = try JSONEncoder().encode(publicKey)
 					try KeychainManager(userID: userID).upsert(key: "zkn_public_key", value: publicKeyData)
@@ -84,7 +83,7 @@ public class FiatShamir: ZeroKnowledgeProtocol {
 					let n = BigUInt(publicKey.nKey)
 					print("Storing: v: \(v)\n\n n: \(n)\n\n")
 					try storeDevice(key: publicKey, for: userID)
-					print("--- Did store new credential to Keychain")
+					print("--- Did store new credential to Keychain: \(Date())")
 				} catch {
 					print("--- eror storing to Keychain: \(error)")
 				}
@@ -99,47 +98,22 @@ public class FiatShamir: ZeroKnowledgeProtocol {
 		try keychainManager.upsert(key: FiatShamirKeyName.v, value: key.vKey)
 		try keychainManager.upsert(key: FiatShamirKeyName.n, value: key.nKey)
 	}
-	
+
 	private func fetchDeviceKey(for userID: String) throws -> PublicKey {
-//		return PublicKey.init(vKey: "15317863943589982770986920780069053352999237741553376898752737276518602390889".data(using: .utf8)!, nKey: "1524083716391953882736655959340008309129638832490506884428914582716591495289377623515064734527705230122527285649882859269".data(using: .utf8)!)
-				let keychainManager = KeychainManager(userID: userID)
-				let storedDataV = try keychainManager.getValue(key: FiatShamirKeyName.v)
-				let storedDataN = try keychainManager.getValue(key: FiatShamirKeyName.n)
-			
-				return .init(vKey: storedDataV, nKey: storedDataN)
+			let keychainManager = KeychainManager(userID: userID)
+			let storedDataV = try keychainManager.getValue(key: FiatShamirKeyName.v)
+			let storedDataN = try keychainManager.getValue(key: FiatShamirKeyName.n)
+		
+			return .init(vKey: storedDataV, nKey: storedDataN)
 	}
-	func authenticate(payload: Data, userID: String) async throws {
+
+	func authenticate(payload: Data) async throws {
 		authenticationConnection.start()
-//		let keyData = try? KeychainManager(userID: self.userID).getValue(key: "zkn_public_key")
-////							print("=+++ the private keys: \keyData")
-//		let keyDecoded = try? JSONDecoder().decode(PublicKey.self, from: keyData!)
-//		let v = BigUInt(keyDecoded!.vKey)
-//		let n = BigUInt(keyDecoded!.nKey)
 		// TODO: Throw error in case device is not binded
 		let publicKey = try fetchDeviceKey(for: userID)
 		let v = BigUInt(publicKey.vKey)
 		let n = BigUInt(publicKey.nKey)
-		
-//		print("--- found existin v: \(v)\n\nand existing n: \(n)\n\n")
 
-//		authenticationConnection.incomingMessagePublisher.sink { _ in
-//		} receiveValue: { [weak self] response in
-//			switch response.state {
-//			case .pendingVerification: break
-//			case .didVerifyWithSuccess:
-//				print("--- Device is verified!!!")
-//			case .didFailToVerify:
-//				print("--- Did fail to verify device!!!")
-//			case .verificationInProgress:
-//				if let challenge = response.challenge {
-//					
-//				} else {
-//					// TODO: throw error
-//					print("--- Error, did start verification process but challenge is missing")
-//				}
-//			}
-//		}
-		self.userID = userID
 		/// Calculate number that initiates the verification process.
 		let r = BigUInt.randomInteger(withExactWidth: configuration.coprimeWidth/2)
 		let initiatingRandomNum = r.power(2, modulus: n)
@@ -193,6 +167,7 @@ public extension FiatShamir {
 	/// Contains the `N` and `v` sub-keys.
 	struct PublicKey: Codable {
 		var vKey: Data
+		/// The `N` product of two big prime numbers (p x q) that constitutes the public key.
 		var nKey: Data
 	}
 }
@@ -200,16 +175,19 @@ public extension FiatShamir {
 // MARK: - Private methods
 
 private extension FiatShamir {
-	/// Calculates and returns the `N` (p x q) number that constitutes the public key.
-	func calculateN() -> BigUInt {
-		let p = generatePrime(configuration.coprimeWidth)//BigUInt.randomInteger(withExactWidth: configuration.coprimeWidth)
-		let q = generatePrime(configuration.coprimeWidth) //BigUInt.randomInteger(withExactWidth: configuration.coprimeWidth)
+	/// Calculates and returns the `N` product of two big prime numbers (p x q) that constitutes the public key.
+	func generatePublicKeyN() -> BigUInt {
+		let p = generatePrime(configuration.coprimeWidth)
+		let q = generatePrime(configuration.coprimeWidth)
 		return p.multiplied(by: q)
 	}
 
+	/// Generates a random prime number.
+	/// - Parameter width: The number of uniformly distributed random bits representing a prime number.
+	/// - Returns a big integer.
 	func generatePrime(_ width: Int) -> BigUInt {
 		while true {
-			var random = BigUInt.randomInteger(withExactWidth: width)
+			var random = BigUInt.randomInteger(withExactWidth: width + 1)
 			random |= BigUInt(1)
 			if random.isPrime() {
 				return random
@@ -218,7 +196,7 @@ private extension FiatShamir {
 	}
 
 	/// Calculates and returns the `s` number that constitutes the private key.
-	func calculateSecret() throws -> BigUInt {
+	func fetchUniqueDeviceSecret() throws -> BigUInt {
 		/// At the moment use only the device's vendor identifier as main secret.
 		// TODO: Use rest of secrets
 
@@ -236,16 +214,13 @@ private extension FiatShamir {
 		return integerValue
 	}
 
-	/// Calculates and returns the protocol's `v` public key.
+	/// Calculates and returns the protocol's `v` public key that uses the user and device secrets along with the `N` product of prime numbers.
 	/// Returns the big integer key in a `Data` value that contains the base-256 representation of this integer, in network (big-endian) byte order.
-	func calculateV() throws -> Data {
-		/// Calculate the `N` number.
-		let n = calculateN()
-		/// Calculate the `s` secret number.
-		let s = try calculateSecret()
+	func generatePublicKeyV(n: BigUInt) throws -> Data {
+		/// Get the `s` secret number based on the unique device identifier (`VendorID`).
+		let s = try fetchUniqueDeviceSecret()
 		/// Calculate the public `v` key.
 		let v = s.power(2, modulus: n)
-		print("V == \(v)")
 		return v.serialize()
 	}
 
@@ -273,7 +248,7 @@ private extension FiatShamir {
 					if let self = self {
 						if let challenge = response.challenge {
 							if let initiatingRandomNum = initiatingRandomNum {
-								if let secret = try? calculateSecret() {
+								if let secret = try? fetchUniqueDeviceSecret() {
 									let keyData = try? KeychainManager(userID: self.userID).getValue(key: "zkn_public_key")
 									////							print("=+++ the private keys: \keyData")
 									let keyDecoded = try? JSONDecoder().decode(PublicKey.self, from: keyData!)
@@ -281,8 +256,8 @@ private extension FiatShamir {
 									let n = BigUInt(keyDecoded!.nKey)
 									print("!!!!!! ee: \(challenge)")
 									let secretPower = secret.power(challenge)
-									let yy = self.initiatingRandomNum?.multiplied(by: secretPower)
-									let y = yy!.power(1, modulus: n)
+									let yy = initiatingRandomNum.multiplied(by: secretPower)
+									let y = yy.power(1, modulus: n)
 									print("-- y:\(y)")
 									print("-- yˆ2modN = \(y.power(2))")
 //									print("-- yˆ2modN = \(y.power(2, modulus: n))")
@@ -307,8 +282,6 @@ private extension FiatShamir {
 						}
 					}
 				}
-//				self?.setBindings()
-
 			}.store(in: &cancelBag)
 	}
 }
