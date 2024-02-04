@@ -12,6 +12,11 @@ import Combine
 /// The basic `Fiat-Shamir` zero-knowledge identification protocol implementation.
 public class FiatShamir: ZeroKnowledgeProtocol {
 
+	// MARK: - ZeroKnowledgeProtocol
+	
+	/// An object managing and generating the private/public keys required by the FiatShamir identification protocol.
+	internal var keyManager: FiatShamirKeyManager
+
 	// MARK: - Private properties
 
 	/// Configuration parameters required by the protocol (i.e. `N` coprime bit length).
@@ -24,8 +29,7 @@ public class FiatShamir: ZeroKnowledgeProtocol {
 	/// Unique user identifier.
 	private var userID: String
 	private var initiatingRandomNum: BigUInt?
-	/// An object managing and generating the private/public keys required by the FiatShamir identification protocol.
-	private var keyManager: FiatShamirKeyManager
+	private var apiConfig: APIConfigurating
 
 	// MARK: - Initialization
 
@@ -43,9 +47,10 @@ public class FiatShamir: ZeroKnowledgeProtocol {
 	) throws {
 		self.userID = userID
 		self.configuration = configuration
-		self.keyManager =  FiatShamirKeyManager(coprimeWidth: configuration.coprimeWidth, secretManager: secretManager)
-		let authenticationConnectionConfig = WSUserAuthentication(base: apiConfig.baseURL, path: "/authenticate/")
+		self.keyManager = FiatShamirKeyManager(coprimeWidth: configuration.coprimeWidth, secretManager: secretManager, userID: userID)
+		let authenticationConnectionConfig = WSUserAuthentication(base: apiConfig.baseWSURL, path: "/authenticate/")
 		self.authenticationConnection = try WSConnection(config: authenticationConnectionConfig)
+		self.apiConfig = apiConfig
 		/// Set up observers to react on the verfier's requests for proof.
 		setBindings()
 	}
@@ -54,15 +59,16 @@ public class FiatShamir: ZeroKnowledgeProtocol {
 
 	func register(payload: Data) async throws {
 		/// Calculate public key based on secrets and unique device identifiers.
-		let publicKey = try keyManager.generatePublicKey()
+		let publicKey = try keyManager.generateDevicePublicKey()
+		let keyContainer = KeyContainer(device: publicKey, other: [publicKey, publicKey])
 		/// Construct the payload to be sent as message.
 		let payload = RegistrationPayload(protocolType: ZkpFlavor.fiatShamir(config: configuration).name,
 										  payload: payload,
 										  userID: userID,
-										  key: publicKey)
+										  key: keyContainer)
 		let encodedPayload = try JSONEncoder().encode(payload)
 		
-		var request = UserRegistration(base: "http://192.168.178.52:8012", path: "/register")
+		var request = UserRegistration(base: self.apiConfig.baseHTTPURL, path: "/register")
 		request.body = encodedPayload
 		let response = try await request.execute()
 		if let httpResponse = response.1 as? HTTPURLResponse {
@@ -70,10 +76,6 @@ public class FiatShamir: ZeroKnowledgeProtocol {
 				do {
 					let publicKeyData = try JSONEncoder().encode(publicKey)
 					try KeychainManager(userID: userID).upsert(key: "zkn_public_key", value: publicKeyData)
-					
-					let v = BigUInt(publicKey.vKey)
-					let n = BigUInt(publicKey.nKey)
-					print("Storing: v: \(v)\n\n n: \(n)\n\n")
 					try storeDevice(key: publicKey, for: userID)
 					print("--- Did store new credential to Keychain: \(Date())")
 				} catch {
@@ -132,6 +134,13 @@ public extension FiatShamir {
 		var vKey: Data
 		/// The `N` product of two big prime numbers (p x q) that constitutes the public key.
 		var nKey: Data
+	}
+	
+	struct KeyContainer: Codable {
+		/// A public key pair (`V`and `N`) derived from a unique device identifier.
+		var device: PublicKey
+		/// An array of other public key pairs (`V`and `N`) injected by the user and/or based on the environment where/when the registration occured.
+		var other: [PublicKey]
 	}
 }
 

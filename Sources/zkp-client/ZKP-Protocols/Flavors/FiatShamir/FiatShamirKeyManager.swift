@@ -9,7 +9,7 @@ import Foundation
 import BigInt
 
 /// An object managing and generating the private/public keys required by the FiatShamir identification protocol.
-class FiatShamirKeyManager {
+class FiatShamirKeyManager: KeyManaging {
 	
 	// MARK: Private properties
 
@@ -18,6 +18,8 @@ class FiatShamirKeyManager {
 	private var coprimeWidth: Int
 	/// Executes CRUD operations regarding user's and device's secrets.
 	private var secretManager: SecretManaging
+	/// The unique user identifier.
+	private let userID: String
 
 	// MARK: - Initialization
 
@@ -25,17 +27,20 @@ class FiatShamirKeyManager {
 	/// - Parameters:
 	///   - coprimeWidth: The number of bits of the `N` comprimes. An RSA minimum is from 1024 to 2048 bits.
 	///   - secretManager: Executes CRUD operations regarding user's and device's secrets.
+	///   - userID: The unique user identifier.
 	public init(
 		coprimeWidth: Int,
-		secretManager: SecretManaging
+		secretManager: SecretManaging,
+		userID: String
 	) {
 		self.coprimeWidth = coprimeWidth
 		self.secretManager = secretManager
+		self.userID = userID
 	}
 
-	// MARK: - Public methods
+	// MARK: - KeyManaging
 
-	func generatePublicKey() throws -> FiatShamir.PublicKey {
+	func generateDevicePublicKey() throws -> FiatShamir.PublicKey {
 		let n = generatePublicKeyN()
 		let v = try generatePublicKeyV(n: n)
 		return .init(vKey: v, nKey: n.serialize())
@@ -53,8 +58,8 @@ class FiatShamirKeyManager {
 		}
 		/// Strips the `-` characters.
 		let deviceIDStripped = deviceID.replacingOccurrences(of: "-", with: "")
-		/// Convert the hexadecimal deviceID into a big integer.
-		guard let integerValue = BigUInt.init(deviceIDStripped, radix: 16) ?? BigUInt(deviceIDStripped, radix: 10) else {
+		/// Append the user identifier (converted into hex) to deviceID and convert into a big integer.
+		guard let integerValue = BigUInt.init(deviceIDStripped+userID.toHex(), radix: 16) ?? BigUInt(deviceIDStripped, radix: 10) else {
 			throw FiatShamirError.couldNotConvertDeviceIDToInteger
 		}
 		return integerValue
