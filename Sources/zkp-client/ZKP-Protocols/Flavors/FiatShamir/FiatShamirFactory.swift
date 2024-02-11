@@ -20,7 +20,8 @@ struct FiatShamirFactory: ZKPFlavorFactoryProtocol {
 	func createZKP() throws -> any ZeroKnowledgeProtocol {
 		try FiatShamir(
 			userID: userID,
-			secretManager: SecretManager(),
+			secretManager: SecretManager(), 
+			secureStorage: KeychainManager(userID: userID),
 			configuration: zkpConfig,
 			apiConfig: apiConfig
 		)

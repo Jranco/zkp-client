@@ -15,7 +15,11 @@ public class FiatShamir: ZeroKnowledgeProtocol {
 	// MARK: - ZeroKnowledgeProtocol
 	
 	/// An object managing and generating the private/public keys required by the FiatShamir identification protocol.
-	internal var keyManager: FiatShamirKeyManager
+	private(set) var keyManager: FiatShamirKeyManager
+	/// An object executing CRUD operations in secure storage.
+	private(set) var secureStorage: SecureStorageManaging
+	/// Contains api related configuration.
+	private(set) var apiConfig: APIConfigurating
 
 	// MARK: - Private properties
 
@@ -29,7 +33,6 @@ public class FiatShamir: ZeroKnowledgeProtocol {
 	/// Unique user identifier.
 	private var userID: String
 	private var initiatingRandomNum: BigUInt?
-	private var apiConfig: APIConfigurating
 
 	// MARK: - Initialization
 
@@ -42,12 +45,14 @@ public class FiatShamir: ZeroKnowledgeProtocol {
 	init(
 		userID: String,
 		secretManager: SecretManaging,
+		secureStorage: SecureStorageManaging,
 		configuration: Config,
 		apiConfig: APIConfigurating
 	) throws {
 		self.userID = userID
 		self.configuration = configuration
 		self.keyManager = FiatShamirKeyManager(coprimeWidth: configuration.coprimeWidth, secretManager: secretManager, userID: userID)
+		self.secureStorage = secureStorage
 		let authenticationConnectionConfig = WSUserAuthentication(base: apiConfig.baseWSURL, path: "/authenticate/")
 		self.authenticationConnection = try WSConnection(config: authenticationConnectionConfig)
 		self.apiConfig = apiConfig
@@ -75,8 +80,7 @@ public class FiatShamir: ZeroKnowledgeProtocol {
 			if httpResponse.statusCode == 200 {
 				do {
 					let publicKeyData = try JSONEncoder().encode(publicKey)
-					try KeychainManager(userID: userID).upsert(key: "zkn_public_key", value: publicKeyData)
-					try storeDevice(key: publicKey, for: userID)
+					try secureStorage.upsert(key: "zkn_public_key", value: publicKeyData)
 					print("--- Did store new credential to Keychain: \(Date())")
 				} catch {
 					print("--- eror storing to Keychain: \(error)")
@@ -88,13 +92,18 @@ public class FiatShamir: ZeroKnowledgeProtocol {
 	}
 
 	func authenticate(payload: Data) async throws {
+		/// Start WS connection
 		authenticationConnection.start()
+
 		// TODO: Throw error in case device is not binded
-		let publicKey = try fetchDeviceKey(for: userID)
+		/// Try getting the already stored (unique) device public key. In the future also the `registration` timestamp to be used as a secret
+		/// and other user's secrets
+		let keyData = try? secureStorage.getValue(key: "zkn_public_key")
+		let publicKey = try! JSONDecoder().decode(PublicKey.self, from: keyData!)
 		let n = BigUInt(publicKey.nKey)
 
-		/// Calculate number that initiates the verification process.
-		let r = BigUInt.randomInteger(withExactWidth: configuration.coprimeWidth/2)
+		/// Calculate random session number that initiates the verification process.
+		let r = BigUInt.randomInteger(withExactWidth: keyManager.coprimeWidth/2)
 		let initiatingRandomNum = r.power(2, modulus: n)
 		self.initiatingRandomNum = r
 		/// Construct the payload to be sent as message.
@@ -105,7 +114,8 @@ public class FiatShamir: ZeroKnowledgeProtocol {
 											initiatingNum: initiatingRandomNum.serialize(), 
 											challengeResponse: Data())
 		let encodedPayload = try JSONEncoder().encode(payload)
-		/// Sends an authentication request initiating the `zkp` verification process.
+
+		/// Send an authentication request initiating the `zkp` verification process.
 		authenticationConnection.sendMessage(message: String(data: encodedPayload, encoding: .utf8) ?? "could not encode payload")
 	}
 }
@@ -173,7 +183,7 @@ private extension FiatShamir {
 						if let challenge = response.challenge {
 							if let initiatingRandomNum = initiatingRandomNum {
 								if let secret = try? self.keyManager.fetchUniqueDeviceSecret() {
-									let keyData = try? KeychainManager(userID: self.userID).getValue(key: "zkn_public_key")
+									let keyData = try? secureStorage.getValue(key: "zkn_public_key")
 									let keyDecoded = try? JSONDecoder().decode(PublicKey.self, from: keyData!)
 									let n = BigUInt(keyDecoded!.nKey)
 									let secretPower = secret.power(challenge)
@@ -195,18 +205,5 @@ private extension FiatShamir {
 					}
 				}
 			}.store(in: &cancelBag)
-	}
-
-	private func storeDevice(key: PublicKey, for userID: String) throws {
-		let keychainManager = KeychainManager(userID: userID)
-		try keychainManager.upsert(key: FiatShamirKeyName.v, value: key.vKey)
-		try keychainManager.upsert(key: FiatShamirKeyName.n, value: key.nKey)
-	}
-
-	private func fetchDeviceKey(for userID: String) throws -> PublicKey {
-		let keychainManager = KeychainManager(userID: userID)
-		let storedDataV = try keychainManager.getValue(key: FiatShamirKeyName.v)
-		let storedDataN = try keychainManager.getValue(key: FiatShamirKeyName.n)
-		return .init(vKey: storedDataV, nKey: storedDataN)
 	}
 }

@@ -9,7 +9,7 @@ import Foundation
 import BigInt
 
 /// Executes CRUD operations in secure storage.
-struct KeychainManager: KeychainManaging {
+struct KeychainManager: SecureStorageManaging {
 	
 	// MARK: Private properties
 

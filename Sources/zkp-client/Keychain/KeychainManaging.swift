@@ -8,7 +8,7 @@
 import Foundation
 
 /// A protocol defining requirements to execute CRUD operations in secure storage.
-protocol KeychainManaging {
+protocol SecureStorageManaging {
 
 	/// Inserts (if key doesn't exist) or updates the value in bytes for the given key in secure storage.
 	/// - Parameters:

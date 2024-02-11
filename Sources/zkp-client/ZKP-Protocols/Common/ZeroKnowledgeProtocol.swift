@@ -11,8 +11,13 @@ import Foundation
 /// It could be a interactive or non-interactive scheme using the device's and user's secrets to identify the requesting device (`claimer`).
 protocol ZeroKnowledgeProtocol {
 	associatedtype keyManagerType: KeyManaging
-	/// Generates keys based on user and device secrets.
+	/// An object generating keys based on user and device secrets.
 	var keyManager: keyManagerType { get }
+	/// An object executing CRUD operations in secure storage.
+	var secureStorage: SecureStorageManaging { get }
+	/// Contains api related configuration.
+	var apiConfig: APIConfigurating { get }
+	
 	/// Sends initial user registration payload attaching the `ZKP` public key.
 	/// This `ZKP` public key will be used in the follow up authentication requests verifying that the sender is
 	/// an eligible device.

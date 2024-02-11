@@ -10,12 +10,15 @@ import BigInt
 
 /// An object managing and generating the private/public keys required by the FiatShamir identification protocol.
 class FiatShamirKeyManager: KeyManaging {
-	
-	// MARK: Private properties
 
+	// MARK: - Public properties
+	
 	/// The number of bits of the `N` comprimes.
 	/// - NOTE: An RSA minimum is from 1024 to 2048 bits.
-	private var coprimeWidth: Int
+	private(set) var coprimeWidth: Int
+
+	// MARK: Private properties
+
 	/// Executes CRUD operations regarding user's and device's secrets.
 	private var secretManager: SecretManaging
 	/// The unique user identifier.

@@ -32,6 +32,8 @@ public struct ZKPClient {
 		self.znp = try builder.createZKP()
 	}
 
+// TODO: return result in both requests
+	
 	/// Executes a `registration` request.
 	/// Along with the registration payload it sends initial device secrets to be able to execute the identification scheme later during authentication.
 	/// - Parameters:
