@@ -118,6 +118,14 @@ public class FiatShamir: ZeroKnowledgeProtocol {
 		/// Send an authentication request initiating the `zkp` verification process.
 		authenticationConnection.sendMessage(message: String(data: encodedPayload, encoding: .utf8) ?? "could not encode payload")
 	}
+
+	// MARK: - ZKPDevicePKProvider
+	
+	func fetchDeviceKey() throws -> Data {
+		let key = try self.keyManager.generateDevicePublicKey()
+		let keyData = try JSONEncoder().encode(key)
+		return keyData
+	}
 }
 
 // MARK: - Public methods

@@ -16,12 +16,13 @@ extension Logger {
 	static let deviceBinding = Logger(subsystem: subsystem, category: "device-binding")
 }
 
-class BindingClient: NSObject {
-
+class BindingClient: NSObject, DeviceBindingClientStateContextProtocol {
+	
 	// MARK: - Private properties
 
+	var devicePK: Data
 	/// A core-bluetooth peripheral manager instance.
-	private var peripheralManager: CBPeripheralManager?
+	private var peripheralManager: CBPeripheralManager!
 	/// Models the various states of the authenticator, obfuscating the underneath core-bluetooth states.
 	@Published private(set) var state: State = .loading
 
@@ -30,18 +31,20 @@ class BindingClient: NSObject {
 	public static let authenticatorUUID = CBUUID.init(nsuuid: UUID())
 //	CBUUID(string: "E20A39F4-73F5-4BC4-A12F-17D1AD07A961")
 	var transferCharacteristic: CBMutableCharacteristic?
-
+	
 	private var receivedData: Data = Data()
 	private var shouldLoadMore: Bool = false
-	
+	var currentSearchState: DeviceBindingClientStateProtocol = DeviceBindingClientSynPendingState(peripheralManager: .init(), transferCharacteristic: nil, connectedCentral: nil)
+
 	// MARK: - Initialization
 
-	override init() {
+	init(devicePK: Data) {
+		self.devicePK = devicePK
 		super.init()
 		self.peripheralManager = CBPeripheralManager(delegate: self,
 													 queue: nil,
 													 options: [CBPeripheralManagerOptionShowPowerAlertKey: true])
-		
+		self.currentSearchState = DeviceBindingClientSynPendingState(peripheralManager: peripheralManager, transferCharacteristic: nil, connectedCentral: nil)
 	}
 
 	// MARK: - Private methods
@@ -53,7 +56,7 @@ class BindingClient: NSObject {
 															 permissions: [.readable, .writeable])
 		let transferService = CBMutableService(type: Self.serviceUUID, primary: true)
 		transferService.characteristics = [transferCharacteristic]
-		peripheralManager?.add(transferService)
+		peripheralManager.add(transferService)
 		self.transferCharacteristic = transferCharacteristic
 	}
 
@@ -65,7 +68,15 @@ class BindingClient: NSObject {
 		]
 		print("did start advertising: \(advertisementData)")
 		Logger.deviceBinding.debug("did start advertising: \(advertisementData, privacy: .public)")
-		peripheralManager?.startAdvertising(advertisementData)
+		peripheralManager.startAdvertising(advertisementData)
+	}
+
+	// MARK: - DeviceBindingClientStateContextProtocol
+	
+	func changeState(state: DeviceBindingClientStateProtocol) {
+		self.currentSearchState = state
+		self.currentSearchState.context = self
+		state.start()
 	}
 }
 
@@ -103,70 +114,16 @@ extension BindingClient: CBPeripheralManagerDelegate {
 	}
 	
 	internal func peripheralManager(_ peripheral: CBPeripheralManager, central: CBCentral, didSubscribeTo characteristic: CBCharacteristic) {
-		
 		Logger.deviceBinding.debug("did subsscribe to characteristic --- authenticator periperhal \(characteristic, privacy: .public), characteristic: \(characteristic, privacy: .public)")
+		changeState(state: DeviceBindingClientAckState(peripheralManager: self.peripheralManager, transferCharacteristic: self.transferCharacteristic, connectedCentral: central))
 	}
-	
+
 	func peripheralManagerIsReady(toUpdateSubscribers peripheral: CBPeripheralManager) {
 		Logger.deviceBinding.debug("=----- peripheralManagerIsReady")
-
-		guard shouldLoadMore == true else {
-			return
-		}
-		
-		let response2 = "aaand some more ...".data(using: .utf8)!
-		let didSend2 = peripheral.updateValue(response2, for: transferCharacteristic!, onSubscribedCentrals: nil)
-		
-		if didSend2 {
-			Logger.deviceBinding.debug("== ok did send repsonse")
-		} else {
-			Logger.deviceBinding.debug("== did fail to send repsonse")
-		}
+		self.currentSearchState.peripheralManagerIsReady(toUpdateSubscribers: peripheral)
 	}
 	
 	func peripheralManager(_ peripheral: CBPeripheralManager, didReceiveWrite requests: [CBATTRequest]) {
-		for aRequest in requests {
-			guard let requestValue = aRequest.value,
-				let stringFromData = String(data: requestValue, encoding: .utf8) else {
-					continue
-			}
-			Logger.deviceBinding.debug("did receive value: \(stringFromData, privacy: .public)")
-			
-			if stringFromData != "EOF" {
-				self.receivedData.append(requestValue)
-				
-			} else {
-				
-				do {
-					let decoded = try JSONDecoder().decode(DeviceBindingMessageDTO.self, from: receivedData)
-					let payloadStr = String(data: decoded.payload, encoding: .utf8)
-					Logger.deviceBinding.debug("did decode msg type \(decoded.messageType.rawValue, privacy: .public), with payload \(payloadStr!, privacy: .public)")
-					
-				} catch {
-					Logger.deviceBinding.debug("error decoding data : \(error.localizedDescription, privacy: .public)")
-				}
-				receivedData = Data()
-				Logger.deviceBinding.debug("did receive EOF: \(stringFromData, privacy: .public)")
-				let response = "Hey ho got your msg man".data(using: .utf8)!
-				let didSend = peripheral.updateValue(response, for: transferCharacteristic!, onSubscribedCentrals: nil)
-				
-				if didSend {
-					Logger.deviceBinding.debug("== ok did send repsonse")
-				} else {
-					Logger.deviceBinding.debug("== did fail to send repsonse")
-				}
-				
-				let response2 = "ok that's it".data(using: .utf8)!
-				let didSend2 = peripheral.updateValue(response2, for: transferCharacteristic!, onSubscribedCentrals: nil)
-				
-				if didSend2 {
-					Logger.deviceBinding.debug("== ok did send repsonse2")
-				} else {
-					Logger.deviceBinding.debug("== did fail to send repsonse2")
-				}
-				self.peripheralManager?.respond(to: aRequest, withResult: .success)
-				shouldLoadMore = true
-			}
-		}
+		self.currentSearchState.peripheralManager(peripheral, didReceiveWrite: requests)
 	}
 }

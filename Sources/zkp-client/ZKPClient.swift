@@ -49,4 +49,8 @@ public struct ZKPClient {
 	public func sendAuthentication(payload: Data) async throws {
 		try await znp.authenticate(payload: payload)
 	}
+	
+	public func getDevicePublicKey() throws -> Data {
+		try znp.fetchDeviceKey()
+	}
 }

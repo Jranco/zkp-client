@@ -9,7 +9,7 @@ import Foundation
 
 /// A protocol defining requirements and operations of a zero knowledge implementation.
 /// It could be a interactive or non-interactive scheme using the device's and user's secrets to identify the requesting device (`claimer`).
-protocol ZeroKnowledgeProtocol {
+protocol ZeroKnowledgeProtocol: ZKPDevicePKProvider {
 	associatedtype keyManagerType: KeyManaging
 	/// An object generating keys based on user and device secrets.
 	var keyManager: keyManagerType { get }

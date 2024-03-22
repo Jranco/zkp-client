@@ -11,12 +11,13 @@ import Foundation
 import CoreBluetooth
 import Combine
 
-public class BindingAuthenticator: NSObject {
+public class BindingAuthenticator: NSObject, DeviceBindingAuthenticatorStateContextProtocol {
 	private var centralManager: CBCentralManager?
 	private var serviceID: String
 	private var characteristicID: String
 	private var discoveredPeripheral: CBPeripheral?
 	private var transferCharacteristic: CBCharacteristic?
+	var currentSearchState: DeviceBindingAuthenticatorStateProtocol = DeviceBindingAuthenticatorDiscoveringState()
 	
 	public init(serviceID: String, characteristicID: String) {
 		self.serviceID = serviceID
@@ -44,6 +45,14 @@ public class BindingAuthenticator: NSObject {
 		centralManager?.scanForPeripherals(withServices: [.init(string: serviceID)],
 											   options: [CBCentralManagerScanOptionAllowDuplicatesKey: true])
 //		}
+	}
+
+	// MARK: - DeviceBindingAuthenticatorStateContextProtocol
+
+	func changeState(state: DeviceBindingAuthenticatorStateProtocol) {
+		self.currentSearchState = state
+		self.currentSearchState.context = self
+		state.start()
 	}
 }
 
@@ -148,34 +157,12 @@ extension BindingAuthenticator: CBPeripheralDelegate {
 			let stringFromData = String(data: packetData, encoding: .utf8)
 			
 			var sendDataIndex = 0
-			
-//			var amountToSend = data.count - sendDataIndex
-//			let mtu = peripheral.maximumWriteValueLength(for: .withResponse)
-//			amountToSend = min(amountToSend, mtu)
-			
-			let payload = "Candy pastry pastry cheesecake jujubes jelly beans jelly beans cake. Pie cupcake cupcake cake lollipop oat cake liquorice chupa chups pastry. Lemon drops muffin fruitcake sugar plum oat cake tiramisu lollipop lemon drops icing. Jujubes cake marzipan macaroon candy canes brownie apple pie cookie. Donut powder lollipop croissant caramels cake marzipan. Gummies croissant toffee powder chocolate bar ice cream dragée chocolate bar. Jelly beans macaroon halvah jelly beans cake toffee chupa chups sesame snaps. Jelly-o powder pastry powder apple pie sweet roll candy candy. Caramels cupcake carrot cake brownie pastry. Ice cream marzipan apple pie powder sesame snaps wafer. Soufflé wafer wafer pastry caramels danish tiramisu jelly-o gummies. Chocolate bar bonbon sweet muffin caramels. Sesame snaps sweet roll dessert marzipan gingerbread pie. Muffin sweet roll oat cake apple pie lemon drops jujubes. Bear claw wafer ice cream gummi bears tiramisu cheesecake sesame snaps fruitcake jelly beans. Halvah lollipop chocolate cake brownie tiramisu halvah. Gingerbread candy croissant tiramisu soufflé cupcake sugar plum. Pie bonbon marshmallow icing bear claw topping icing sesame snaps jelly-o."
-			
-			let dto = DeviceBindingMessageDTO(messageType: .syn, payload: payload.data(using: .utf8)!)
-			let encoded = try! JSONEncoder().encode(dto)
-			self.sendData(encoded, toPeripheral: peripheral, forCharacteristic: characteristic)
-			
-			DispatchQueue.main.asyncAfter(deadline: .now()+2) {
-				self.sendData("EOF".data(using: .utf8)!, toPeripheral: peripheral, forCharacteristic: characteristic)
-			}
-//			peripheral.writeValue(packetData, for: characteristic, type: .withResponsme)
+			changeState(state: DeviceBindingAuthenticatorSynState(peripheral: peripheral, service: service, characteristic: characteristic))
 		}
 	}
 
 	public func peripheral(_ peripheral: CBPeripheral, didWriteValueFor characteristic: CBCharacteristic, error: Error?) {
-		print("-- did write: \(error)")
-
-		if let error = error {
-			print("error writting: \(error)")
-		}
-		guard let value = characteristic.value else {
-			return
-		}
-		print("did write value \(String(data: value, encoding: .utf8))")
+		currentSearchState.peripheral(peripheral, didWriteValueFor: characteristic, error: error)
 	}
 	
 	private func sendData(_ data: Data, toPeripheral peripheral: CBPeripheral, forCharacteristic characteristic: CBCharacteristic) {
@@ -192,15 +179,7 @@ extension BindingAuthenticator: CBPeripheralDelegate {
 	}
 	
 	public func peripheral(_ peripheral: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic, error: Error?) {
-		// Deal with errors (if any)
-		if let error = error {
-			print("Error discovering characteristics: \(error.localizedDescription)")
-			return
-		}
-		
-		guard let characteristicData = characteristic.value,
-			let stringFromData = String(data: characteristicData, encoding: .utf8) else { return }
-		print("--- did receive response: \(stringFromData)")
+		currentSearchState.peripheral(peripheral, didUpdateValueFor: characteristic, error: error)
 	}
 }
 
@@ -214,5 +193,7 @@ extension DeviceBindingMessageDTO {
 		case syn
 		case ack
 		case otp
+		case waitingForPK
+		case sendingPK
 	}
 }

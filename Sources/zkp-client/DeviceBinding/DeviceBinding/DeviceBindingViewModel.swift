@@ -20,17 +20,19 @@ class DeviceBindingViewModel: ObservableObject {
 	/// A set storing the `cancellable` subscriber instances.
 	private var cancelBag: Set<AnyCancellable> = []
 	private weak var delegate: DeviceBindingDelegate?
+	private var devicePK: Data
 
 	// MARK: - Initialization
 
-	init(delegate: DeviceBindingDelegate?) {
+	init(delegate: DeviceBindingDelegate?, devicePK: Data) {
 		self.delegate = delegate
+		self.devicePK = devicePK
 	}
 	
 	// MARK: - Public methods
 
 	public func start() {
-		newDeviceClient = BindingClient()
+		newDeviceClient = BindingClient(devicePK: devicePK)
 		setBinding()
 	}
 

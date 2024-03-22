@@ -16,8 +16,8 @@ public struct DeviceBindingView: View {
 
 	// MARK: - Initialization
 
-	public init(delegate: DeviceBindingDelegate?) {
-		self.viewModel = DeviceBindingViewModel(delegate: delegate)
+	public init(delegate: DeviceBindingDelegate?, devicePK: Data) {
+		self.viewModel = DeviceBindingViewModel(delegate: delegate, devicePK: devicePK)
 	}
 	
 	// MARK: - Body
