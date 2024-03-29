@@ -8,15 +8,27 @@
 import Foundation
 import CoreBluetooth
 import OSLog
+import CryptoKit
 
 class DeviceBindingClientAckState: DeviceBindingClientBaseState {
 	
 	private var synData = Data()
-//	private var peripheralManager: CBPeripheralManager
-//	private var transferCharacteristic: CBMutableCharacteristic?
-//	private var connectedCentral: CBCentral?
-//	private var responseDataOffset = 0
-//	private var didFinishSendingData: Bool = false
+	private let privateShareKey: P256.KeyAgreement.PrivateKey
+	private var authenticatorsPublicKey: Data?
+	private var commonSymmetricKey: SymmetricKey? {
+		guard let authenticatorsPublicKey = authenticatorsPublicKey else {
+			Logger.deviceBinding.debug("Could not go to receiving public key. Missing authenticators public shared key")
+			return nil
+		}
+		let key = try! P256.KeyAgreement.PublicKey(rawRepresentation: [UInt8](authenticatorsPublicKey))
+		let sharedSecret = try! privateShareKey.sharedSecretFromKeyAgreement(with: key)
+
+		let symmetricKey = sharedSecret.hkdfDerivedSymmetricKey(using: SHA256.self,
+																	 salt: "hallo".data(using: .utf8)!,
+																	 sharedInfo: Data(),
+																	 outputByteCount: 32)
+		return symmetricKey
+	}
 
 	private var responseDataWhatever: DeviceBindingMessageDTO {
 		let data = "Cupcake pie soufflé wafer cake marshmallow apple pie. Pudding toffee marshmallow chocolate candy chocolate liquorice. Oat cake topping brownie gingerbread chocolate bar soufflé chocolate. Muffin candy danish lemon drops tart sugar plum jujubes chocolate. Danish gummies sweet roll chocolate bar jujubes. Lollipop cotton candy gummies tiramisu danish icing donut. Halvah bonbon gingerbread gummi bears jujubes topping. Marzipan wafer sugar plum gummi bears donut jelly beans candy soufflé. Macaroon sugar plum sweet cotton candy cake wafer chocolate bar candy canes gummies. Jelly beans chocolate bar powder cheesecake bonbon cake liquorice donut jelly. Jelly-o donut biscuit lollipop ice cream. Sweet toffee sesame snaps cake dessert. Jujubes tootsie roll chocolate cake danish bear claw jelly carrot cake brownie. Powder tiramisu sugar plum fruitcake biscuit sugar plum topping cotton candy. Gingerbread danish oat cake caramels shortbread caramels cake chupa chups pie. Gingerbread marshmallow gummies oat cake cupcake sesame snaps chocolate bar. Sugar plum marzipan sweet icing topping.".data(using: .utf8)!
@@ -28,22 +40,13 @@ class DeviceBindingClientAckState: DeviceBindingClientBaseState {
 		transferCharacteristic: CBMutableCharacteristic?,
 		connectedCentral: CBCentral?
 	) {
-//		self.peripheralManager = peripheralManager
-//		self.transferCharacteristic = transferCharacteristic
-//		self.connectedCentral = connectedCentral
+		self.privateShareKey = P256.KeyAgreement.PrivateKey()
 		super.init(peripheralManager: peripheralManager, transferCharacteristic: transferCharacteristic, connectedCentral: connectedCentral)
 		self.responseData = try! JSONEncoder().encode(responseDataWhatever)
 	}
 	
 	override func peripheralManagerIsReady(toUpdateSubscribers peripheral: CBPeripheralManager) {
 		sendDataIfNeeded()
-//		let didSend = peripheral.updateValue("EOF".data(using: .utf8)!, for: transferCharacteristic!, onSubscribedCentrals: nil)
-//		
-//		if didSend {
-//			Logger.deviceBinding.debug("== ok did send EOF repsonse")
-//		} else {
-//			Logger.deviceBinding.debug("== did fail to send EOF repsonse")
-//		}
 	}
 
 	override func peripheralManager(_ peripheral: CBPeripheralManager, didReceiveWrite requests: [CBATTRequest]) {
@@ -64,55 +67,36 @@ class DeviceBindingClientAckState: DeviceBindingClientBaseState {
 					let payloadStr = String(data: decoded.payload, encoding: .utf8)
 					Logger.deviceBinding.debug("did decode msg type \(decoded.messageType.rawValue, privacy: .public), with payload \(payloadStr!, privacy: .public)")
 					Logger.deviceBinding.debug("did receive EOF: \(stringFromData, privacy: .public)")
-					sendDataIfNeeded()
+					
+					if let decodedSyn = try? JSONDecoder().decode(DeviceBindingSynPayload.self, from: decoded.payload) {
+						self.authenticatorsPublicKey = decodedSyn.publicKey
+						let ackPayloadData = DeviceBindingAckPayload(timestamp: decodedSyn.timestamp+1, publicKey: self.privateShareKey.publicKey.rawRepresentation)
+						let ackPaylodEncded = try! JSONEncoder().encode(ackPayloadData)
+						let responseDTO = DeviceBindingMessageDTO(messageType: .ack, payload: ackPaylodEncded)
+						self.responseData = try! JSONEncoder().encode(responseDTO)
+						sendDataIfNeeded()
+					} else {
+						// TODO: go to erroneous state
+						Logger.deviceBinding.debug("error decoding syn from sender")
+					}
 				} catch {
 					Logger.deviceBinding.debug("error decoding data : \(error.localizedDescription, privacy: .public)")
 				}
 			}
 		}
 	}
-	
+
 	override func didFinishSendingDataWithSuccess() {
+		guard let commonSymmetricKey = commonSymmetricKey else {
+			Logger.deviceBinding.debug("Could not go to receiving public key. Missing authenticators public shared key")
+			return
+		}
 		let newState = DeviceBindingClientSharingPKState(
 			peripheralManager: peripheralManager,
 			transferCharacteristic: transferCharacteristic,
 			connectedCentral: connectedCentral,
-			devicePK: context!.devicePK)
+			devicePK: context!.devicePK, 
+			symmetricKey: commonSymmetricKey)
 		context?.changeState(state: newState)
 	}
-
-//	func sendDataIfNeeded() {
-//		guard
-//			let transferCharacteristic = transferCharacteristic,
-//			let connectedCentral = connectedCentral
-//		else {
-//			return
-//		}
-//
-//		guard responseDataOffset < responseData.count else {
-//			if didFinishSendingData == false {
-//				let result = peripheralManager.updateValue("EOF".data(using: .utf8)!, for: transferCharacteristic, onSubscribedCentrals: nil)
-//				if result == true {
-//					Logger.deviceBinding.debug("== ok did send repsonse EOF")
-//					didFinishSendingData = true
-//				} else {
-//					Logger.deviceBinding.debug("== did fail to ack EOF repsonse")
-//				}
-//			}
-//			return
-//		}
-//
-//		let mtu = connectedCentral.maximumUpdateValueLength
-//		let dataRemainingToSend = responseData.count - responseDataOffset
-//		let minDataToSend = min(mtu,dataRemainingToSend)
-//		let dataToSend = responseData.subdata(in: responseDataOffset..<responseDataOffset + minDataToSend)
-//		let result = peripheralManager.updateValue(dataToSend, for: transferCharacteristic, onSubscribedCentrals: nil)
-//		if result == true {
-//			Logger.deviceBinding.debug("== ok did send repsonse")
-//			responseDataOffset += minDataToSend
-//			sendDataIfNeeded()
-//		} else {
-//			Logger.deviceBinding.debug("== did fail to send repsonse")
-//		}
-//	}
 }

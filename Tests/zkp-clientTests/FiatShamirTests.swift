@@ -38,8 +38,38 @@ final class FiatShamirTests: XCTestCase {
 //		let reversedBytes = serialized.reversed().map { UInt8(String($0))! }
 		let final = BigUInt(serialized)
 		print("final: \(final)")
+	}
+	
+	func test_createValuesForAPItests() throws {
+		let vInt = BigUInt.init(integerLiteral: 302)
+		let nInt = BigUInt.init(integerLiteral: 323)
+		let initiatingInt = BigUInt.init(integerLiteral: 144)
 
+		let key = FiatShamir.PublicKey(vKey: vInt.serialize(), nKey: nInt.serialize())
+		let keyContainer = FiatShamir.KeyContainer(device: key, other: [])
+//		let authDTO = RegistrationPayload(protocolType: "fiatShamir",
+//										  payload: "some-auth-data".data(using: .utf8)!,
+//										  userID: "DummyUser",
+//										  key: keyContainer)
 		
+		let authDTO = AuthenticationPayload(protocolType: "fiatShamir", 
+											payload: "some-auth-data".data(using: .utf8)!,
+											userID: "DummyUser",
+											key: keyContainer,
+											initiatingNum: initiatingInt.serialize(),
+											challengeResponse: Data())
+		let encodedData = try JSONEncoder().encode(authDTO)
+		let str = String(data: encodedData, encoding: .utf8)
+		print("-- str: \(str)")
+		
+		
+		
+		let challengeResponse = ChallengePayload(challengeResponse: BigUInt.init(integerLiteral: 12).serialize())
+		let encodedPayload = try! JSONEncoder().encode(challengeResponse)
+		let str2 = String(data: encodedPayload, encoding: .utf8)
+
+		print("-- response: \(str2)")
+
 	}
 }
 

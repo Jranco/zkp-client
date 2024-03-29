@@ -50,6 +50,10 @@ public struct ZKPClient {
 		try await znp.authenticate(payload: payload)
 	}
 	
+	func sendDeviceBinding(payload: Data, otherDeviceKey: Data) async throws {
+		try await znp.bindDevice(payload: payload, otherDeviceKey: otherDeviceKey)
+	}
+
 	public func getDevicePublicKey() throws -> Data {
 		try znp.fetchDeviceKey()
 	}

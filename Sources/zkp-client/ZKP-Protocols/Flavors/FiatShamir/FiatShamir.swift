@@ -53,7 +53,7 @@ public class FiatShamir: ZeroKnowledgeProtocol {
 		self.configuration = configuration
 		self.keyManager = FiatShamirKeyManager(coprimeWidth: configuration.coprimeWidth, secretManager: secretManager, userID: userID)
 		self.secureStorage = secureStorage
-		let authenticationConnectionConfig = WSUserAuthentication(base: apiConfig.baseWSURL, path: "/authenticate/")
+		let authenticationConnectionConfig = WSUserAuthentication(base: apiConfig.baseWSURL, path: "/bindNewDevice/")
 		self.authenticationConnection = try WSConnection(config: authenticationConnectionConfig)
 		self.apiConfig = apiConfig
 		/// Set up observers to react on the verfier's requests for proof.
@@ -119,11 +119,43 @@ public class FiatShamir: ZeroKnowledgeProtocol {
 		authenticationConnection.sendMessage(message: String(data: encodedPayload, encoding: .utf8) ?? "could not encode payload")
 	}
 
+	func bindDevice(payload: Data, otherDeviceKey: Data) async throws {
+		/// Start WS connection
+		authenticationConnection.start()
+		
+		// TODO: Throw error in case device is not binded
+		/// Try getting the already stored (unique) device public key. In the future also the `registration` timestamp to be used as a secret
+		/// and other user's secrets
+		let keyData = try? secureStorage.getValue(key: "zkn_public_key")
+		let publicKey = try! JSONDecoder().decode(PublicKey.self, from: keyData!)
+		let n = BigUInt(publicKey.nKey)
+		
+		/// Calculate random session number that initiates the verification process.
+		let r = BigUInt.randomInteger(withExactWidth: keyManager.coprimeWidth/2)
+		let initiatingRandomNum = r.power(2, modulus: n)
+		self.initiatingRandomNum = r
+		
+		let authPayload = AuthenticationPayload(protocolType: ZkpFlavor.fiatShamir(config: configuration).name,
+												payload: payload,
+												userID: userID,
+												key: publicKey,
+												initiatingNum: initiatingRandomNum.serialize(),
+												challengeResponse: Data())
+		let payload = DeviceBindingPayload(newDeviceKey: otherDeviceKey, authenticationPayload: authPayload)
+		let encodedPayload = try JSONEncoder().encode(payload)
+		
+		/// Send an authentication request initiating the `zkp` verification process.
+		authenticationConnection.sendMessage(message: String(data: encodedPayload, encoding: .utf8) ?? "could not encode payload")
+	}
+
 	// MARK: - ZKPDevicePKProvider
 	
 	func fetchDeviceKey() throws -> Data {
 		let key = try self.keyManager.generateDevicePublicKey()
 		let keyData = try JSONEncoder().encode(key)
+		// TODO: Upsert it after an operation is finished with success. The following upsert was used as a quick way to test new device binding from the client side.
+		try secureStorage.upsert(key: "zkn_public_key", value: keyData)
+		print("--- Did store new credential to Keychain: \(Date())")
 		return keyData
 	}
 }
@@ -179,7 +211,7 @@ private extension FiatShamir {
 				case .pendingVerification: 
 					print("--- incomingMessagePublisher.pendingVerification")
 				case .didVerifyWithSuccess:
-					print("--- incomingMessagePublisher.didVerifyWithSuccess")
+					print("--- incomingMessagePublisher.didVerifyWithSuccess/..... \(response)")
 					self?.authenticationConnection.stop()
 				case .didFailToVerify:
 					print("--- incomingMessagePublisher.didFailToVerify")

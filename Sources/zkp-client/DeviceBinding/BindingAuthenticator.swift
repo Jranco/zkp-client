@@ -143,20 +143,6 @@ extension BindingAuthenticator: CBPeripheralDelegate {
 			transferCharacteristic = characteristic
 			peripheral.setNotifyValue(true, for: characteristic)
 			
-			let data: Data! = "Candy pastry pastry cheesecake jujubes jelly beans jelly beans cake. Pie cupcake cupcake cake lollipop oat cake liquorice chupa chups pastry. Lemon drops muffin fruitcake sugar plum oat cake tiramisu lollipop lemon drops icing. Jujubes cake marzipan macaroon candy canes brownie apple pie cookie. Donut powder lollipop croissant caramels cake marzipan. Gummies croissant toffee powder chocolate bar ice cream dragée chocolate bar. Jelly beans macaroon halvah jelly beans cake toffee chupa chups sesame snaps. Jelly-o powder pastry powder apple pie sweet roll candy candy. Caramels cupcake carrot cake brownie pastry. Ice cream marzipan apple pie powder sesame snaps wafer. Soufflé wafer wafer pastry caramels danish tiramisu jelly-o gummies. Chocolate bar bonbon sweet muffin caramels. Sesame snaps sweet roll dessert marzipan gingerbread pie. Muffin sweet roll oat cake apple pie lemon drops jujubes. Bear claw wafer ice cream gummi bears tiramisu cheesecake sesame snaps fruitcake jelly beans. Halvah lollipop chocolate cake brownie tiramisu halvah. Gingerbread candy croissant tiramisu soufflé cupcake sugar plum. Pie bonbon marshmallow icing bear claw topping icing sesame snaps jelly-o. EOF -".data(using: .utf8)
-//			let data: Data! = "Hello, playground".data(using: .utf8)
-			let mtu = peripheral.maximumWriteValueLength(for: .withResponse)
-			print("--- mtu: \(mtu)")
-
-			var rawPacket = [UInt8]()
-			
-			let bytesToCopy: size_t = min(mtu, data.count)
-			data.copyBytes(to: &rawPacket, count: bytesToCopy)
-			let packetData = Data(bytes: &rawPacket, count: bytesToCopy)
-			
-			let stringFromData = String(data: packetData, encoding: .utf8)
-			
-			var sendDataIndex = 0
 			changeState(state: DeviceBindingAuthenticatorSynState(peripheral: peripheral, service: service, characteristic: characteristic))
 		}
 	}
@@ -196,4 +182,14 @@ extension DeviceBindingMessageDTO {
 		case waitingForPK
 		case sendingPK
 	}
+}
+
+struct DeviceBindingSynPayload: Codable {
+	var timestamp: TimeInterval
+	var publicKey: Data
+}
+
+struct DeviceBindingAckPayload: Codable {
+	var timestamp: TimeInterval
+	var publicKey: Data
 }

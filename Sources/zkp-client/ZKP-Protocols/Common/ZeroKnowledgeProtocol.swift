@@ -30,4 +30,6 @@ protocol ZeroKnowledgeProtocol: ZKPDevicePKProvider {
 	/// - Parameters:
 	///   - payload: The registration payload required by the target api.
 	func authenticate(payload: Data) async throws
+	
+	func bindDevice(payload: Data, otherDeviceKey: Data) async throws
 }
