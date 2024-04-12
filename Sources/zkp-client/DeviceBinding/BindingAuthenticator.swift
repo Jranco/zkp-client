@@ -178,7 +178,6 @@ extension DeviceBindingMessageDTO {
 	enum MessageType: String, Codable, CaseIterable {
 		case syn
 		case ack
-		case otp
 		case waitingForPK
 		case sendingPK
 	}

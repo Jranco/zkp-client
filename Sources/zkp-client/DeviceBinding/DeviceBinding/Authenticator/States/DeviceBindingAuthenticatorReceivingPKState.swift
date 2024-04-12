@@ -69,7 +69,7 @@ class DeviceBindingAuthenticatorReceivingPKState: DeviceBindingAuthenticatorBase
 				
 				self.client = try! ZKPClient(flavor: .fiatShamir(config: .init(coprimeWidth: 256)),
 											  apiConfig: APIConfiguration(baseWSURL: "ws://192.168.178.52:8014", baseHTTPURL: "http://192.168.178.52:8014"),
-											   userID: "tom45")
+											   userID: "tom46")
 				//self.client.znp.register(payload: <#T##Data#>)
 				Task {
 					do {

@@ -53,7 +53,8 @@ public class FiatShamir: ZeroKnowledgeProtocol {
 		self.configuration = configuration
 		self.keyManager = FiatShamirKeyManager(coprimeWidth: configuration.coprimeWidth, secretManager: secretManager, userID: userID)
 		self.secureStorage = secureStorage
-		let authenticationConnectionConfig = WSUserAuthentication(base: apiConfig.baseWSURL, path: "/bindNewDevice/")
+		// TODO: Use `bindNewDevice` for binding new device
+		let authenticationConnectionConfig = WSUserAuthentication(base: apiConfig.baseWSURL, path: "/authenticate/")
 		self.authenticationConnection = try WSConnection(config: authenticationConnectionConfig)
 		self.apiConfig = apiConfig
 		/// Set up observers to react on the verfier's requests for proof.

@@ -21,8 +21,7 @@ protocol SecureStorageManaging {
 	/// Removes the key and value from secure storage.
 	/// - Parameters:
 	///   - key: The key of the value to be stored. A prefix will be added locally to uniquely distinguished it from others, as keychain is accessible by other applications.
-	///   - value: The data to be stored in bytes.
-	func remove(key: String, value: Data) throws
+	func remove(key: String) throws
 
 	/// Removes all key and their respective values from secure storage
 	func removeAllValues() throws

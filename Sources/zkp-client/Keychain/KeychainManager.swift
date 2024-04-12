@@ -89,7 +89,7 @@ struct KeychainManager: SecureStorageManaging {
 		return data
 	}
 
-	func remove(key: String, value: Data) throws {
+	func remove(key: String) throws {
 
 	}
 	
