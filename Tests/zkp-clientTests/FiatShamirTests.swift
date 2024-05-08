@@ -76,7 +76,9 @@ final class FiatShamirTests: XCTestCase {
 // MARK: - Mock/Fake
 
 struct SecretManagerMock: SecretManaging {
-	var deviceID: String?
+	var deviceID: String? {
+		"5D1C574AC9B942D89B861CCD72552A13"
+	}
 	
 	func upsertSecret<SecretID>(with id: SecretID, userID: String, buffer: UnsafeRawBufferPointer?) where SecretID : Hashable {}
 	

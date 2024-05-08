@@ -33,7 +33,7 @@ public struct ZKPClient {
 	}
 
 // TODO: return result in both requests
-	
+
 	/// Executes a `registration` request.
 	/// Along with the registration payload it sends initial device secrets to be able to execute the identification scheme later during authentication.
 	/// - Parameters:
@@ -49,12 +49,12 @@ public struct ZKPClient {
 	public func sendAuthentication(payload: Data) async throws {
 		try await znp.authenticate(payload: payload)
 	}
-	
+
 	func sendDeviceBinding(payload: Data, otherDeviceKey: Data) async throws {
 		try await znp.bindDevice(payload: payload, otherDeviceKey: otherDeviceKey)
 	}
 
-	public func getDevicePublicKey() throws -> Data {
-		try znp.fetchDeviceKey()
+	public func getDevicePublicKey() async throws -> Data {
+		try await znp.fetchDeviceKey()
 	}
 }

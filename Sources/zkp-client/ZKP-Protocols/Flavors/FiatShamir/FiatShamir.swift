@@ -27,7 +27,7 @@ public class FiatShamir: ZeroKnowledgeProtocol {
 	private let configuration: Config
 	/// Establishes and maintains a `web-socket`connection sending the initially requested payload
 	/// and identifying the device based on the given secrets.
-	private let authenticationConnection: WSConnection<WSUserAuthenticationResponse>
+	private let authenticationConnection: WSConnection<WSUserVerificationResponse>
 	/// A set storing the `cancellable` subscriber instances.
 	private var cancelBag: Set<AnyCancellable> = []
 	/// Unique user identifier.
@@ -55,6 +55,8 @@ public class FiatShamir: ZeroKnowledgeProtocol {
 		self.secureStorage = secureStorage
 		// TODO: Use `bindNewDevice` for binding new device
 		let authenticationConnectionConfig = WSUserAuthentication(base: apiConfig.baseWSURL, path: "/authenticate/")
+//		let authenticationConnectionConfig = WSUserAuthentication(base: apiConfig.baseWSURL, path: "/bindNewDevice/")
+
 		self.authenticationConnection = try WSConnection(config: authenticationConnectionConfig)
 		self.apiConfig = apiConfig
 		/// Set up observers to react on the verfier's requests for proof.
@@ -63,9 +65,10 @@ public class FiatShamir: ZeroKnowledgeProtocol {
 
 	// MARK: - ZeroKnowledgeProtocol
 
+	@MainActor
 	func register(payload: Data) async throws {
 		/// Calculate public key based on secrets and unique device identifiers.
-		let publicKey = try keyManager.generateDevicePublicKey()
+		let publicKey = try await keyManager.generateDevicePublicKey()
 		let keyContainer = KeyContainer(device: publicKey, other: [publicKey, publicKey])
 		/// Construct the payload to be sent as message.
 		let payload = RegistrationPayload(protocolType: ZkpFlavor.fiatShamir(config: configuration).name,
@@ -104,7 +107,7 @@ public class FiatShamir: ZeroKnowledgeProtocol {
 		let n = BigUInt(publicKey.nKey)
 
 		/// Calculate random session number that initiates the verification process.
-		let r = BigUInt.randomInteger(withExactWidth: keyManager.coprimeWidth/2)
+		let r = BigUInt.randomInteger(withExactWidth: keyManager.coprimeWidth)
 		let initiatingRandomNum = r.power(2, modulus: n)
 		self.initiatingRandomNum = r
 		/// Construct the payload to be sent as message.
@@ -151,8 +154,8 @@ public class FiatShamir: ZeroKnowledgeProtocol {
 
 	// MARK: - ZKPDevicePKProvider
 	
-	func fetchDeviceKey() throws -> Data {
-		let key = try self.keyManager.generateDevicePublicKey()
+	func fetchDeviceKey() async throws -> Data {
+		let key = try await self.keyManager.generateDevicePublicKey()
 		let keyData = try JSONEncoder().encode(key)
 		// TODO: Upsert it after an operation is finished with success. The following upsert was used as a quick way to test new device binding from the client side.
 		try secureStorage.upsert(key: "zkn_public_key", value: keyData)
@@ -206,45 +209,44 @@ private extension FiatShamir {
 		authenticationConnection.incomingMessagePublisher
 			.sink { [weak self] result in
 				self?.authenticationConnection.stop()
-				print("--- incomingMessagePublisher result: \(result)")
 			} receiveValue: { [weak self] response in
 				switch response.state {
-				case .pendingVerification: 
-					print("--- incomingMessagePublisher.pendingVerification")
+				case .pendingVerification: break
 				case .didVerifyWithSuccess:
-					print("--- incomingMessagePublisher.didVerifyWithSuccess/..... \(response)")
 					self?.authenticationConnection.stop()
 				case .didFailToVerify:
-					print("--- incomingMessagePublisher.didFailToVerify")
 					self?.authenticationConnection.stop()
 				case .verificationInProgress:
-					print("--- incomingMessagePublisher.verificationInProgress")
 
-					if let self = self {
-						if let challenge = response.challenge {
-							if let initiatingRandomNum = initiatingRandomNum {
-								if let secret = try? self.keyManager.fetchUniqueDeviceSecret() {
-									let keyData = try? secureStorage.getValue(key: "zkn_public_key")
-									let keyDecoded = try? JSONDecoder().decode(PublicKey.self, from: keyData!)
-									let n = BigUInt(keyDecoded!.nKey)
-									let secretPower = secret.power(challenge)
-									let yy = initiatingRandomNum.multiplied(by: secretPower)
-									let y = yy.power(1, modulus: n)
-
-									let challengeResponse = ChallengePayload(challengeResponse: y.serialize())
-									let encodedPayload = try! JSONEncoder().encode(challengeResponse)
-									/// Sends an authentication request initiating the `zkp` verification process.
-									authenticationConnection.sendMessage(message: String(data: encodedPayload, encoding: .utf8) ?? "could not encode payload")
-								}
-							} else {
-								print("--- Error, is missing initial random number `r`")
-							}
-						} else {
-							// TODO: throw error
-							print("--- Error, did start verification process but challenge is missing")
-						}
+					if 
+						let self = self,
+						let challenge = response.challenge,
+						let challengeResponse = self.challengeResponse(from: challenge)
+					{
+						authenticationConnection.sendMessage(message: String(data: challengeResponse, encoding: .utf8) ?? "could not encode payload")
+					} else {
+						// TODO: Handle error
 					}
 				}
 			}.store(in: &cancelBag)
+	}
+
+	private func challengeResponse(from challenge: Int) -> Data? {
+		guard
+			let initiatingRandomNum = initiatingRandomNum,
+			let secret = try? self.keyManager.fetchUniqueDeviceSecret()
+		else {
+			return nil
+		}
+		let keyData = try? secureStorage.getValue(key: "zkn_public_key")
+		let keyDecoded = try? JSONDecoder().decode(PublicKey.self, from: keyData!)
+		let n = BigUInt(keyDecoded!.nKey)
+		let secretPower = secret.power(challenge)
+		let yy = initiatingRandomNum.multiplied(by: secretPower)
+		let y = yy.power(1, modulus: n)
+
+		let challengeResponse = ChallengePayload(challengeResponse: y.serialize())
+		let encodedPayload = try! JSONEncoder().encode(challengeResponse)
+		return encodedPayload
 	}
 }

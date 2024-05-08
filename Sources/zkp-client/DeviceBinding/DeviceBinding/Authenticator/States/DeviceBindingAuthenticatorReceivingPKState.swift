@@ -68,9 +68,8 @@ class DeviceBindingAuthenticatorReceivingPKState: DeviceBindingAuthenticatorBase
 				print("-- did receive zkp key from client: \(decryptedZKPPublicKey)")
 				
 				self.client = try! ZKPClient(flavor: .fiatShamir(config: .init(coprimeWidth: 256)),
-											  apiConfig: APIConfiguration(baseWSURL: "ws://192.168.178.52:8014", baseHTTPURL: "http://192.168.178.52:8014"),
-											   userID: "tom46")
-				//self.client.znp.register(payload: <#T##Data#>)
+											  apiConfig: APIConfiguration(baseWSURL: "ws://192.168.178.52:8013", baseHTTPURL: "http://192.168.178.52:8013"),
+											   userID: "tom52")
 				Task {
 					do {
 						try await self.client?.sendDeviceBinding(payload: "bind new device".data(using: .utf8)!, otherDeviceKey: decryptedData)

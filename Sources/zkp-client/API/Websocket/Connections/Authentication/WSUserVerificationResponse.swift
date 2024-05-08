@@ -1,5 +1,5 @@
 //
-//  WSUserAuthenticationResponse.swift
+//  WSUserVerificationResponse.swift
 //  zkp-client
 //
 //  Created by Thomas Segkoulis on 28.01.24.
@@ -7,12 +7,12 @@
 
 import Foundation
 
-struct WSUserAuthenticationResponse: Codable {
+struct WSUserVerificationResponse: Codable {
 	var challenge: Int?
 	var state: State
 }
 
-extension WSUserAuthenticationResponse {
+extension WSUserVerificationResponse {
 	enum State: String, Codable {
 		case pendingVerification
 		case verificationInProgress

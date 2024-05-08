@@ -20,19 +20,27 @@ class DeviceBindingViewModel: ObservableObject {
 	/// A set storing the `cancellable` subscriber instances.
 	private var cancelBag: Set<AnyCancellable> = []
 	private weak var delegate: DeviceBindingDelegate?
-	private var devicePK: Data
-
+	private var devicePK: Data?
+	private var client: ZKPClient?	
+	@Published var isLoading: Bool = true
+	
 	// MARK: - Initialization
 
-	init(delegate: DeviceBindingDelegate?, devicePK: Data) {
+	init(delegate: DeviceBindingDelegate?, client: ZKPClient) {
 		self.delegate = delegate
-		self.devicePK = devicePK
+		Task {
+			devicePK = try? await client.getDevicePublicKey()
+			isLoading = false
+		}
 	}
 	
 	// MARK: - Public methods
 
 	public func start() {
-		newDeviceClient = BindingClient(devicePK: devicePK)
+		guard let key = devicePK else {
+			return
+		}
+		newDeviceClient = BindingClient(devicePK: key)
 		setBinding()
 	}
 

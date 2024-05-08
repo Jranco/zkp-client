@@ -12,7 +12,7 @@ import BigInt
 protocol KeyManaging {
 	associatedtype Key: Codable
 	/// Generates public key based on the unique device identifier which can fetched via the `fetchUniqueDeviceSecret` method.
-	func generateDevicePublicKey() throws -> Key
+	func generateDevicePublicKey() async throws -> Key
 	/// Calculates and returns the `s` number that constitutes the private key.
 	func fetchUniqueDeviceSecret() throws -> BigUInt
 }

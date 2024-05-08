@@ -43,9 +43,13 @@ class FiatShamirKeyManager: KeyManaging {
 
 	// MARK: - KeyManaging
 
-	func generateDevicePublicKey() throws -> FiatShamir.PublicKey {
-		let n = generatePublicKeyN()
+	func generateDevicePublicKey() async throws -> FiatShamir.PublicKey {
+		print("-- calculating N")
+		let n = await generatePublicKeyN()
+		print("-- did calculate N")
+		print("-- calculating V")
 		let v = try generatePublicKeyV(n: n)
+		print("-- did calculate V")
 		return .init(vKey: v, nKey: n.serialize())
 	}
 
@@ -61,26 +65,59 @@ class FiatShamirKeyManager: KeyManaging {
 		}
 		/// Strips the `-` characters.
 		let deviceIDStripped = deviceID.replacingOccurrences(of: "-", with: "")
+		let secretEnhanced = addPadding(to: deviceIDStripped+userID.toHex(), totalBitsCount: coprimeWidth)
+
 		/// Append the user identifier (converted into hex) to deviceID and convert into a big integer.
-		guard let integerValue = BigUInt.init(deviceIDStripped+userID.toHex(), radix: 16) ?? BigUInt(deviceIDStripped, radix: 10) else {
+		guard let integerValue = BigUInt.init(secretEnhanced, radix: 16) ?? BigUInt(deviceIDStripped, radix: 10) else {
 			throw FiatShamirError.couldNotConvertDeviceIDToInteger
 		}
 		return integerValue
 	}
+	
+	private func addPadding(to secret: String, totalBitsCount: Int) -> String {
+		guard let data = secret.data(using: .utf8) else {
+			return secret
+		}
+
+		let numOfBits = data.count * 8
+		
+		guard numOfBits < totalBitsCount else {
+//			if let truncatedData = data.firstNBits(totalBitsCount) {
+//				return String(data: truncatedData, encoding: .utf8) ?? secret
+//			}
+			return secret
+		}
+		
+		let numOfRepeats = totalBitsCount/numOfBits
+		var concatenatedData = data
+		
+		for _ in 0..<numOfRepeats {
+			concatenatedData.append(data)
+		}
+		
+		let remaininDigits = (totalBitsCount % numOfBits)/8
+		
+		for _ in 0..<remaininDigits {
+			concatenatedData.append("0".data(using: .utf8)!)
+		}
+		
+		return String(data: concatenatedData, encoding: .utf8) ?? secret
+	}
 
 	// MARK: - Private methods
-	
+
 	/// Calculates and returns the `N` product of two big prime numbers (p x q) that constitutes the public key.
-	private func generatePublicKeyN() -> BigUInt {
-		let p = generatePrime(coprimeWidth)
-		let q = generatePrime(coprimeWidth)
+	@MainActor
+	private func generatePublicKeyN() async -> BigUInt {
+		let p = await generatePrime(coprimeWidth/2)
+		let q = await generatePrime(coprimeWidth/2)
 		return p.multiplied(by: q)
 	}
 
 	/// Generates a random prime number.
 	/// - Parameter width: The number of uniformly distributed random bits representing a prime number.
 	/// - Returns a big integer.
-	private func generatePrime(_ width: Int) -> BigUInt {
+	private func generatePrime(_ width: Int) async -> BigUInt {
 		while true {
 			var random = BigUInt.randomInteger(withExactWidth: width + 1)
 			random |= BigUInt(1)

@@ -8,5 +8,5 @@
 import Foundation
 
 protocol ZKPDevicePKProvider {
-	func fetchDeviceKey() throws -> Data
+	func fetchDeviceKey() async throws -> Data
 }
