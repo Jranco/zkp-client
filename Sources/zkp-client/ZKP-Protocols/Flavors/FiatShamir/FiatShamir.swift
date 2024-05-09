@@ -25,9 +25,10 @@ public class FiatShamir: ZeroKnowledgeProtocol {
 
 	/// Configuration parameters required by the protocol (i.e. `N` coprime bit length).
 	private let configuration: Config
-	/// Establishes and maintains a `web-socket`connection sending the initially requested payload
-	/// and identifying the device based on the given secrets.
+	/// Establishes and maintains a `web-socket`connection to perform authentication.
 	private let authenticationConnection: WSConnection<WSUserVerificationResponse>
+	/// Establishes and maintains a `web-socket`connection to perform new device binding.
+	private let deviceBindingConnection: WSConnection<WSUserVerificationResponse>
 	/// A set storing the `cancellable` subscriber instances.
 	private var cancelBag: Set<AnyCancellable> = []
 	/// Unique user identifier.
@@ -53,11 +54,10 @@ public class FiatShamir: ZeroKnowledgeProtocol {
 		self.configuration = configuration
 		self.keyManager = FiatShamirKeyManager(coprimeWidth: configuration.coprimeWidth, secretManager: secretManager, userID: userID)
 		self.secureStorage = secureStorage
-		// TODO: Use `bindNewDevice` for binding new device
 		let authenticationConnectionConfig = WSUserAuthentication(base: apiConfig.baseWSURL, path: "/authenticate/")
-//		let authenticationConnectionConfig = WSUserAuthentication(base: apiConfig.baseWSURL, path: "/bindNewDevice/")
-
+		let bindingDeviceConnectionConfig = WSUserAuthentication(base: apiConfig.baseWSURL, path: "/bindNewDevice/")
 		self.authenticationConnection = try WSConnection(config: authenticationConnectionConfig)
+		self.deviceBindingConnection = try WSConnection(config: bindingDeviceConnectionConfig)
 		self.apiConfig = apiConfig
 		/// Set up observers to react on the verfier's requests for proof.
 		setBindings()
@@ -125,7 +125,7 @@ public class FiatShamir: ZeroKnowledgeProtocol {
 
 	func bindDevice(payload: Data, otherDeviceKey: Data) async throws {
 		/// Start WS connection
-		authenticationConnection.start()
+		deviceBindingConnection.start()
 		
 		// TODO: Throw error in case device is not binded
 		/// Try getting the already stored (unique) device public key. In the future also the `registration` timestamp to be used as a secret
@@ -149,7 +149,7 @@ public class FiatShamir: ZeroKnowledgeProtocol {
 		let encodedPayload = try JSONEncoder().encode(payload)
 		
 		/// Send an authentication request initiating the `zkp` verification process.
-		authenticationConnection.sendMessage(message: String(data: encodedPayload, encoding: .utf8) ?? "could not encode payload")
+		deviceBindingConnection.sendMessage(message: String(data: encodedPayload, encoding: .utf8) ?? "could not encode payload")
 	}
 
 	// MARK: - ZKPDevicePKProvider
@@ -158,9 +158,13 @@ public class FiatShamir: ZeroKnowledgeProtocol {
 		let key = try await self.keyManager.generateDevicePublicKey()
 		let keyData = try JSONEncoder().encode(key)
 		// TODO: Upsert it after an operation is finished with success. The following upsert was used as a quick way to test new device binding from the client side.
-		try secureStorage.upsert(key: "zkn_public_key", value: keyData)
+//		try secureStorage.upsert(key: "zkn_public_key", value: keyData)
 		print("--- Did store new credential to Keychain: \(Date())")
 		return keyData
+	}
+	
+	func storeNewDevicePublicKey(key: Data) throws {
+		try secureStorage.upsert(key: "zkn_public_key", value: key)
 	}
 }
 
@@ -224,6 +228,30 @@ private extension FiatShamir {
 						let challengeResponse = self.challengeResponse(from: challenge)
 					{
 						authenticationConnection.sendMessage(message: String(data: challengeResponse, encoding: .utf8) ?? "could not encode payload")
+					} else {
+						// TODO: Handle error
+					}
+				}
+			}.store(in: &cancelBag)
+		
+		deviceBindingConnection.incomingMessagePublisher
+			.sink { [weak self] result in
+				self?.authenticationConnection.stop()
+			} receiveValue: { [weak self] response in
+				switch response.state {
+				case .pendingVerification: break
+				case .didVerifyWithSuccess:
+					self?.authenticationConnection.stop()
+				case .didFailToVerify:
+					self?.authenticationConnection.stop()
+				case .verificationInProgress:
+
+					if
+						let self = self,
+						let challenge = response.challenge,
+						let challengeResponse = self.challengeResponse(from: challenge)
+					{
+						deviceBindingConnection.sendMessage(message: String(data: challengeResponse, encoding: .utf8) ?? "could not encode payload")
 					} else {
 						// TODO: Handle error
 					}

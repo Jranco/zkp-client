@@ -21,13 +21,14 @@ class DeviceBindingViewModel: ObservableObject {
 	private var cancelBag: Set<AnyCancellable> = []
 	private weak var delegate: DeviceBindingDelegate?
 	private var devicePK: Data?
-	private var client: ZKPClient?	
+	private var zkpClient: ZKPClient?
 	@Published var isLoading: Bool = true
 	
 	// MARK: - Initialization
 
 	init(delegate: DeviceBindingDelegate?, client: ZKPClient) {
 		self.delegate = delegate
+		self.zkpClient = client
 		Task {
 			devicePK = try? await client.getDevicePublicKey()
 			isLoading = false
@@ -52,6 +53,11 @@ class DeviceBindingViewModel: ObservableObject {
 			case .ready(let serviceID, let characteristicID):
 				self?.state = .loaded(serviceID: serviceID, characteristicID: characteristicID)
 				self?.delegate?.deviceBindingDidSucceed()
+			case .didFinishBinding:
+				if let devicePK = self?.devicePK {
+					
+					try? self?.zkpClient?.storeNewDevicePublicKey(key: devicePK)
+				}
 			default:
 				self?.state = .fail(error: DeviceBindingError.failedToBind)
 				self?.delegate?.deviceBindingDidFail(error: DeviceBindingError.failedToBind)

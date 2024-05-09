@@ -63,8 +63,6 @@ class BindingClient: NSObject, DeviceBindingClientStateContextProtocol {
 	private func startAdvertising() {
 		let advertisementData: [String: Any] = [
 			CBAdvertisementDataServiceUUIDsKey: [Self.serviceUUID]
-//			CBAdvertisementDataLocalNameKey:  Self.authenticatorUUID
-//			"MyCustomIdentifierKey": Self.authenticatorUUID
 		]
 		print("did start advertising: \(advertisementData)")
 		Logger.deviceBinding.debug("did start advertising: \(advertisementData, privacy: .public)")
@@ -78,6 +76,10 @@ class BindingClient: NSObject, DeviceBindingClientStateContextProtocol {
 		self.currentSearchState.context = self
 		state.start()
 	}
+	
+	func didFinishBinding() {
+		state = .didFinishBinding
+	}
 }
 
 extension BindingClient {
@@ -89,6 +91,7 @@ extension BindingClient {
 		case serviceOff
 		case didConnectAuthenticator
 		case other /// Try again later
+		case didFinishBinding
 	}
 }
 

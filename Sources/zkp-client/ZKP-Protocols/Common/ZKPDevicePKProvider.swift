@@ -9,4 +9,5 @@ import Foundation
 
 protocol ZKPDevicePKProvider {
 	func fetchDeviceKey() async throws -> Data
+	func storeNewDevicePublicKey(key: Data) throws
 }

@@ -11,4 +11,5 @@ protocol DeviceBindingClientStateContextProtocol: AnyObject {
 	var devicePK: Data { get }
 	var currentSearchState: DeviceBindingClientStateProtocol { get set }
 	func changeState(state: DeviceBindingClientStateProtocol)
+	func didFinishBinding()
 }

@@ -57,4 +57,8 @@ public struct ZKPClient {
 	public func getDevicePublicKey() async throws -> Data {
 		try await znp.fetchDeviceKey()
 	}
+	
+	public func storeNewDevicePublicKey(key: Data) throws {
+		try znp.storeNewDevicePublicKey(key: key)
+	}
 }

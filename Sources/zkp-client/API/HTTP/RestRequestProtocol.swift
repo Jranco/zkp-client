@@ -7,6 +7,7 @@
 
 import Foundation
 
+/// A protocol defining requirements of an HTTP request.
 protocol RestRequestProtocol {
 	var base: String { get }
 	var path: String { get }
@@ -20,7 +21,6 @@ extension RestRequestProtocol {
 		guard let url = URL(string: base+path) else {
 			throw RestRequestError.malformedURLPath
 		}
-
 		var request = URLRequest(url: url)
 		request.httpMethod = method.rawValue
 		request.httpBody = body
@@ -30,9 +30,10 @@ extension RestRequestProtocol {
 	}
 }
 
+/// Local errors thrown prior to executing a request.
 enum RestRequestError: LocalizedError {
 	case malformedURLPath
-	
+
 	var errorDescription: String? {
 		switch self {
 		case .malformedURLPath:

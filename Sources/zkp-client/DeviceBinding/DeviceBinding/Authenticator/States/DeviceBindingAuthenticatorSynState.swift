@@ -22,7 +22,6 @@ class DeviceBindingAuthenticatorSynState: DeviceBindingAuthenticatorBaseState {
 	private var clientPublicKey: Data?
 	private var commonSymmetricKey: SymmetricKey? {
 		guard let clientPublicKey = clientPublicKey else {
-			print("Could not go to receiving public key. Missing authenticators public shared key")
 			return nil
 		}
 		let key = try! P256.KeyAgreement.PublicKey(rawRepresentation: [UInt8](clientPublicKey))
@@ -48,8 +47,6 @@ class DeviceBindingAuthenticatorSynState: DeviceBindingAuthenticatorBaseState {
 	}
 
 	override func start() {
-//		let payload = "Candy pastry pastry cheesecake jujubes jelly beans jelly beans cake. Pie cupcake cupcake cake lollipop oat cake liquorice chupa chups pastry. Lemon drops muffin fruitcake sugar plum oat cake tiramisu lollipop lemon drops icing. Jujubes cake marzipan macaroon candy canes brownie apple pie cookie. Donut powder lollipop croissant caramels cake marzipan. Gummies croissant toffee powder chocolate bar ice cream dragée chocolate bar. Jelly beans macaroon halvah jelly beans cake toffee chupa chups sesame snaps. Jelly-o powder pastry powder apple pie sweet roll candy candy. Caramels cupcake carrot cake brownie pastry. Ice cream marzipan apple pie powder sesame snaps wafer. Soufflé wafer wafer pastry caramels danish tiramisu jelly-o gummies. Chocolate bar bonbon sweet muffin caramels. Sesame snaps sweet roll dessert marzipan gingerbread pie. Muffin sweet roll oat cake apple pie lemon drops jujubes. Bear claw wafer ice cream gummi bears tiramisu cheesecake sesame snaps fruitcake jelly beans. Halvah lollipop chocolate cake brownie tiramisu halvah. Gingerbread candy croissant tiramisu soufflé cupcake sugar plum. Pie bonbon marshmallow icing bear claw topping icing sesame snaps jelly-o."
-		
 		let payload = DeviceBindingSynPayload(timestamp: currentDate.timeIntervalSince1970, publicKey: privateShareKey.publicKey.rawRepresentation)
 		let payloadEncoded = try! JSONEncoder().encode(payload)
 		let dto = DeviceBindingMessageDTO(messageType: .syn, payload: payloadEncoded)
@@ -71,7 +68,6 @@ class DeviceBindingAuthenticatorSynState: DeviceBindingAuthenticatorBaseState {
 	override func peripheral(_ peripheral: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic, error: Error?) {
 		
 		if let error = error {
-			print("Error syn - didUpdateValueFor: \(error.localizedDescription)")
 			return
 		}
 
