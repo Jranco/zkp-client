@@ -33,6 +33,7 @@ public class FiatShamir: ZeroKnowledgeProtocol {
 	private var cancelBag: Set<AnyCancellable> = []
 	/// Unique user identifier.
 	private var userID: String
+	/// A random session identifier initiating the interactive verification challenge.
 	private var initiatingRandomNum: BigUInt?
 
 	// MARK: - Initialization
@@ -41,6 +42,7 @@ public class FiatShamir: ZeroKnowledgeProtocol {
 	/// - Parameters:
 	///   - userID: Unique user identifier.
 	///   - secretManager: An object executing CRUD operations regarding user's and device's secrets.
+	///   - secureStorage: An object executing CRUD operations in the secure storage.
 	///   - configuration: Configuration parameters required by the protocol (i.e. `N` coprime bit length).
 	///   - apiConfig: Remote server configuration providing the `api`  and `websocket` services.
 	init(
@@ -85,12 +87,11 @@ public class FiatShamir: ZeroKnowledgeProtocol {
 				do {
 					let publicKeyData = try JSONEncoder().encode(publicKey)
 					try secureStorage.upsert(key: "zkn_public_key", value: publicKeyData)
-					print("--- Did store new credential to Keychain: \(Date())")
 				} catch {
-					print("--- eror storing to Keychain: \(error)")
+					// TODO: Handle error
 				}
 			} else {
-				print("--- FiatShamir.register... user exists")
+				// TODO: Handle error
 			}
 		}
 	}
@@ -157,9 +158,6 @@ public class FiatShamir: ZeroKnowledgeProtocol {
 	func fetchDeviceKey() async throws -> Data {
 		let key = try await self.keyManager.generateDevicePublicKey()
 		let keyData = try JSONEncoder().encode(key)
-		// TODO: Upsert it after an operation is finished with success. The following upsert was used as a quick way to test new device binding from the client side.
-//		try secureStorage.upsert(key: "zkn_public_key", value: keyData)
-		print("--- Did store new credential to Keychain: \(Date())")
 		return keyData
 	}
 	
@@ -215,12 +213,12 @@ private extension FiatShamir {
 				self?.authenticationConnection.stop()
 			} receiveValue: { [weak self] response in
 				switch response.state {
-				case .pendingVerification: break
+				case .pending: break
 				case .didVerifyWithSuccess:
 					self?.authenticationConnection.stop()
-				case .didFailToVerify:
+				case .didFail:
 					self?.authenticationConnection.stop()
-				case .verificationInProgress:
+				case .inProgress:
 
 					if 
 						let self = self,
@@ -239,12 +237,12 @@ private extension FiatShamir {
 				self?.authenticationConnection.stop()
 			} receiveValue: { [weak self] response in
 				switch response.state {
-				case .pendingVerification: break
+				case .pending: break
 				case .didVerifyWithSuccess:
 					self?.authenticationConnection.stop()
-				case .didFailToVerify:
+				case .didFail:
 					self?.authenticationConnection.stop()
-				case .verificationInProgress:
+				case .inProgress:
 
 					if
 						let self = self,
@@ -259,6 +257,10 @@ private extension FiatShamir {
 			}.store(in: &cancelBag)
 	}
 
+	/// Calculates the client's (prover) response to the server's (verifier) challenge.
+	/// - Parameters:
+	///   - challenge: Server's challenge.
+	/// - Returns the challenge response.
 	private func challengeResponse(from challenge: Int) -> Data? {
 		guard
 			let initiatingRandomNum = initiatingRandomNum,

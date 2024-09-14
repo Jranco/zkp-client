@@ -7,6 +7,7 @@
 
 import Foundation
 
+/// A `WebSocket` connection authenticating a user.
 struct WSUserAuthentication: WSConnectionConfig {
 	typealias PayloadType = String
 

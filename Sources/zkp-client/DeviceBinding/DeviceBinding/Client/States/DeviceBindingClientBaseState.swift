@@ -21,7 +21,6 @@ class DeviceBindingClientBaseState: DeviceBindingClientStateProtocol {
 
 	func start() {}
 	func peripheralManager(_ peripheral: CBPeripheralManager, didReceiveWrite requests: [CBATTRequest]) {}
-//	func sendDTO(_ dto: DeviceBindingMessageDTO, toPeripheral peripheralManager: CBPeripheralManager, forCharacteristic characteristic: CBMutableCharacteristic) {}
 	func peripheralManagerIsReady(toUpdateSubscribers peripheral: CBPeripheralManager) {}
 	func didFinishSendingDataWithSuccess() {}
 
@@ -47,11 +46,11 @@ class DeviceBindingClientBaseState: DeviceBindingClientStateProtocol {
 			if didFinishSendingData == false {
 				let result = peripheralManager.updateValue("EOF".data(using: .utf8)!, for: transferCharacteristic, onSubscribedCentrals: nil)
 				if result == true {
-					Logger.deviceBinding.debug("== ok did send repsonse EOF")
+					Logger.deviceBinding.debug("did send repsonse EOF")
 					didFinishSendingData = true
 					didFinishSendingDataWithSuccess()
 				} else {
-					Logger.deviceBinding.debug("== did fail to ack EOF repsonse")
+					Logger.deviceBinding.debug("did fail to ack EOF repsonse")
 				}
 			}
 			return
@@ -63,11 +62,11 @@ class DeviceBindingClientBaseState: DeviceBindingClientStateProtocol {
 		let dataToSend = responseData.subdata(in: responseDataOffset..<responseDataOffset + minDataToSend)
 		let result = peripheralManager.updateValue(dataToSend, for: transferCharacteristic, onSubscribedCentrals: nil)
 		if result == true {
-			Logger.deviceBinding.debug("== ok did send repsonse")
+			Logger.deviceBinding.debug("did send repsonse")
 			responseDataOffset += minDataToSend
 			sendDataIfNeeded()
 		} else {
-			Logger.deviceBinding.debug("== did fail to send repsonse")
+			Logger.deviceBinding.debug("did fail to send repsonse")
 		}
 	}
 

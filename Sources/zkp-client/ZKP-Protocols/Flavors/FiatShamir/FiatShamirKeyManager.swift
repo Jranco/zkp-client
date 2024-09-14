@@ -44,12 +44,8 @@ class FiatShamirKeyManager: KeyManaging {
 	// MARK: - KeyManaging
 
 	func generateDevicePublicKey() async throws -> FiatShamir.PublicKey {
-		print("-- calculating N")
 		let n = await generatePublicKeyN()
-		print("-- did calculate N")
-		print("-- calculating V")
 		let v = try generatePublicKeyV(n: n)
-		print("-- did calculate V")
 		return .init(vKey: v, nKey: n.serialize())
 	}
 

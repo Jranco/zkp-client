@@ -8,6 +8,7 @@
 import Foundation
 
 protocol DeviceBindingAuthenticatorStateContextProtocol: AnyObject {
+	var client: ZKPClient? { get }
 	var currentSearchState: DeviceBindingAuthenticatorStateProtocol { get set }
 	func changeState(state: DeviceBindingAuthenticatorStateProtocol)
 }

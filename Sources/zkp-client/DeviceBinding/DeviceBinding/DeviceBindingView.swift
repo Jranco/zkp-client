@@ -24,9 +24,6 @@ public struct DeviceBindingView: View {
 
 	public var body: some View {
 		ZStack {
-			Text("hellooo")
-				.frame(width: 200, height: 120)
-				.background(Color.blue)
 			switch viewModel.state {
 			case .loading:
 				ProgressView()
@@ -57,7 +54,6 @@ public struct QRCodeView: View {
 				return UIImage(cgImage: cgImage)
 			}
 		}
-
 		return UIImage(systemName: "xmark.circle") ?? UIImage()
 	}
 
@@ -69,35 +65,3 @@ public struct QRCodeView: View {
 			.frame(width: 200, height: 200)
 	}
 }
-
-//private struct QRCodeView: View {
-//
-//	let authenticatorID: String
-//
-//	public var body: some View {
-////		if let qrCodeImage = generateQRCode(from: "device-binding://?authenticatorID=\(authenticatorID)") {
-////		if let qrCodeImage = generateQRCode(from: "hello") {
-//			Image(uiImage: generateQRCode(from: "hello")!)
-//				.resizable()
-//				.interpolation(.none)
-//				.scaledToFit()
-//				.frame(width: 200, height: 200)
-////		} else {
-////			Text("Failed to generate QR code")
-////		}
-//	}
-//
-//	func generateQRCode(from string: String) -> UIImage? {
-//		let data = string.data(using: .utf8)
-//		guard let filter = CIFilter(name: "CIQRCodeGenerator") else { return nil }
-//		filter.setValue(data, forKey: "inputMessage")
-//		guard let ciImage = filter.outputImage else { return nil }
-//		let transform = CGAffineTransform(scaleX: 10, y: 10)
-//		let scaledCIImage = ciImage.transformed(by: transform)
-//		return UIImage(ciImage: scaledCIImage)
-//	}
-//}
-
-//#Preview {
-//	DeviceBindingView()
-//}

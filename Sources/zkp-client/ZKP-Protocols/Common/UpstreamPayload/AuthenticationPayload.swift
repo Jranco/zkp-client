@@ -24,7 +24,8 @@ struct AuthenticationPayload<Key: Codable>: Codable {
 	///
 	/// - NOTE: It is used to be able to identify the device. User might have multiple `binded` devices.
 	var key: Key
-	
+	/// A random session identifier initiating the interactive verification challenge.
 	var initiatingNum: Data
+	/// Response to server's verification challenge.
 	var challengeResponse: Data
 }

@@ -17,7 +17,6 @@ class DeviceBindingClientAckState: DeviceBindingClientBaseState {
 	private var authenticatorsPublicKey: Data?
 	private var commonSymmetricKey: SymmetricKey? {
 		guard let authenticatorsPublicKey = authenticatorsPublicKey else {
-			Logger.deviceBinding.debug("Could not go to receiving public key. Missing authenticators public shared key")
 			return nil
 		}
 		let key = try! P256.KeyAgreement.PublicKey(rawRepresentation: [UInt8](authenticatorsPublicKey))
@@ -31,7 +30,7 @@ class DeviceBindingClientAckState: DeviceBindingClientBaseState {
 	}
 
 	private var responseDataWhatever: DeviceBindingMessageDTO {
-		let data = "Cupcake pie soufflé wafer cake marshmallow apple pie. Pudding toffee marshmallow chocolate candy chocolate liquorice. Oat cake topping brownie gingerbread chocolate bar soufflé chocolate. Muffin candy danish lemon drops tart sugar plum jujubes chocolate. Danish gummies sweet roll chocolate bar jujubes. Lollipop cotton candy gummies tiramisu danish icing donut. Halvah bonbon gingerbread gummi bears jujubes topping. Marzipan wafer sugar plum gummi bears donut jelly beans candy soufflé. Macaroon sugar plum sweet cotton candy cake wafer chocolate bar candy canes gummies. Jelly beans chocolate bar powder cheesecake bonbon cake liquorice donut jelly. Jelly-o donut biscuit lollipop ice cream. Sweet toffee sesame snaps cake dessert. Jujubes tootsie roll chocolate cake danish bear claw jelly carrot cake brownie. Powder tiramisu sugar plum fruitcake biscuit sugar plum topping cotton candy. Gingerbread danish oat cake caramels shortbread caramels cake chupa chups pie. Gingerbread marshmallow gummies oat cake cupcake sesame snaps chocolate bar. Sugar plum marzipan sweet icing topping.".data(using: .utf8)!
+		let data = "some-payload".data(using: .utf8)!
 		return DeviceBindingMessageDTO(messageType: .ack, payload: data)
 	}
 	
@@ -88,7 +87,7 @@ class DeviceBindingClientAckState: DeviceBindingClientBaseState {
 
 	override func didFinishSendingDataWithSuccess() {
 		guard let commonSymmetricKey = commonSymmetricKey else {
-			Logger.deviceBinding.debug("Could not go to receiving public key. Missing authenticators public shared key")
+			Logger.deviceBinding.debug("Could not go to receiving public key. Missing authenticator's public shared key")
 			return
 		}
 		let newState = DeviceBindingClientSharingPKState(

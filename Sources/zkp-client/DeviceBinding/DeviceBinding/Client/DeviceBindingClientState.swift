@@ -13,7 +13,6 @@ protocol DeviceBindingClientStateProtocol {
 
 	func start()
 	func peripheralManager(_ peripheral: CBPeripheralManager, didReceiveWrite requests: [CBATTRequest])
-//	func sendDTO(_ dto: DeviceBindingMessageDTO, toPeripheral peripheralManager: CBPeripheralManager, forCharacteristic characteristic: CBMutableCharacteristic)
 	func peripheralManagerIsReady(toUpdateSubscribers peripheral: CBPeripheralManager)
 	func didFinishSendingDataWithSuccess()
 }

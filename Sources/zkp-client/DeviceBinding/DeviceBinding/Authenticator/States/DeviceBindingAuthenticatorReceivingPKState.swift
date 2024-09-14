@@ -18,7 +18,6 @@ class DeviceBindingAuthenticatorReceivingPKState: DeviceBindingAuthenticatorBase
 
 	private var clientAckResponse: DeviceBindingAckPayload
 	private var commonSymmetricKey: SymmetricKey
-	var client: ZKPClient?
 	
 	init(
 		peripheral: CBPeripheral,
@@ -35,15 +34,16 @@ class DeviceBindingAuthenticatorReceivingPKState: DeviceBindingAuthenticatorBase
 	}
 
 	override func start() {
-		let payload = "Give me your zkp public key sucker"
+		let payload = "Reqeust zkp public key"
 		let encryptedPayload = self.encryptData(data: payload.data(using: .utf8)!, key: commonSymmetricKey)
 		let dto = DeviceBindingMessageDTO(messageType: .waitingForPK, payload: encryptedPayload!)
 		self.sendDTO(dto, toPeripheral: peripheral, forCharacteristic: characteristic)
 	}
 	
 	override func peripheral(_ peripheral: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic, error: Error?) {
-		
+	
 		if let error = error {
+			// TODO: Handle error
 			return
 		}
 
@@ -53,7 +53,7 @@ class DeviceBindingAuthenticatorReceivingPKState: DeviceBindingAuthenticatorBase
 		else {
 			return
 		}
-		
+
 		if stringFromData != "EOF" {
 			self.publicKey.append(data)
 		} else {
@@ -61,20 +61,12 @@ class DeviceBindingAuthenticatorReceivingPKState: DeviceBindingAuthenticatorBase
 				let decoded = try JSONDecoder().decode(DeviceBindingMessageDTO.self, from: publicKey)
 				let zkpClientKey = decoded.payload
 				let decryptedData = try AES.GCM.open(.init(combined: zkpClientKey), using: commonSymmetricKey)
-				let decryptedZKPPublicKey = String(data: decryptedData, encoding: .utf8)!
-				
-				self.client = try! ZKPClient(flavor: .fiatShamir(config: .init(coprimeWidth: 256)),
-											  apiConfig: APIConfiguration(baseWSURL: "ws://192.168.178.52:8013", baseHTTPURL: "http://192.168.178.52:8013"),
-											   userID: "tom54")
 				Task {
 					do {
-						try await self.client?.sendDeviceBinding(payload: "bind new device".data(using: .utf8)!, otherDeviceKey: decryptedData)
+						try await self.context?.client?.sendDeviceBinding(payload: "bind new device".data(using: .utf8)!, otherDeviceKey: decryptedData)
 					} catch {
 					}
 				}
-				
-//				context?.changeState(state: DeviceBindingAuthenticatorReceivingPKState(peripheral: self.peripheral, service: self.service, characteristic: self.characteristic))
-				// TODO: Go to OTP sending state
 			} catch {
 			}
 		}
@@ -85,7 +77,6 @@ class DeviceBindingAuthenticatorReceivingPKState: DeviceBindingAuthenticatorBase
 			let sealedBox = try AES.GCM.seal(data, using: key)
 			return sealedBox.combined
 		} catch {
-			print("Encryption failed with error: \(error)")
 			return nil
 		}
 	}

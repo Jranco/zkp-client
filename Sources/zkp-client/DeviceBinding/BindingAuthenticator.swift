@@ -19,32 +19,24 @@ public class BindingAuthenticator: NSObject, DeviceBindingAuthenticatorStateCont
 	private var transferCharacteristic: CBCharacteristic?
 	var currentSearchState: DeviceBindingAuthenticatorStateProtocol = DeviceBindingAuthenticatorDiscoveringState()
 	
-	public init(serviceID: String, characteristicID: String) {
+	var client: ZKPClient?
+
+	public init(
+		serviceID: String,
+		characteristicID: String,
+		client: ZKPClient?
+	) {
 		self.serviceID = serviceID
 		self.characteristicID = characteristicID
+		self.client = client
 		super.init()
 		self.centralManager = CBCentralManager(delegate: self, queue: nil, options: [CBCentralManagerOptionShowPowerAlertKey: true])
 	}
 
-	/*
-	 * We will first check if we are already connected to our counterpart
-	 * Otherwise, scan for peripherals - specifically for our service's 128bit CBUUID
-	 */
+
 	private func retrievePeripheral() {
-		
-//		let connectedPeripherals: [CBPeripheral] = (centralManager.retrieveConnectedPeripherals(withServices: [TransferService.serviceUUID]))
-//		
-//		os_log("Found connected Peripherals with transfer service: %@", connectedPeripherals)
-//		
-//		if let connectedPeripheral = connectedPeripherals.last {
-//			os_log("Connecting to peripheral %@", connectedPeripheral)
-//			self.discoveredPeripheral = connectedPeripheral
-//			centralManager.connect(connectedPeripheral, options: nil)
-//		} else {
-			// We were not connected to our counterpart, so start scanning
 		centralManager?.scanForPeripherals(withServices: [.init(string: serviceID)],
 											   options: [CBCentralManagerScanOptionAllowDuplicatesKey: true])
-//		}
 	}
 
 	// MARK: - DeviceBindingAuthenticatorStateContextProtocol
@@ -60,43 +52,23 @@ extension BindingAuthenticator: CBCentralManagerDelegate {
 	public func centralManagerDidUpdateState(_ central: CBCentralManager) {
 		switch central.state {
 		case .poweredOn:
-			print("CBManager os ON")
 			retrievePeripheral()
 		case .poweredOff:
-			print("CBManager is not powered on")
-			// In a real app, you'd deal with all the states accordingly
 			return
 		case .resetting:
-			print("CBManager is resetting")
-			// In a real app, you'd deal with all the states accordingly
 			return
 		case .unauthorized:
-				switch central.authorization {
-				case .denied:
-					print("You are not authorized to use Bluetooth")
-				case .restricted:
-					print("Bluetooth is restricted")
-				default:
-					print("Unexpected authorization")
-				}
 			return
 		case .unknown:
-			print("CBManager state is unknown")
-			// In a real app, you'd deal with all the states accordingly
 			return
 		case .unsupported:
-			print("Bluetooth is not supported on this device")
-			// In a real app, you'd deal with all the states accordingly
 			return
 		@unknown default:
-			print("A previously unknown central manager state occurred")
-			// In a real app, you'd deal with yet unknown cases that might occur in the future
 			return
 		}
 	}
 
 	public func centralManager(_ central: CBCentralManager, didDiscover peripheral: CBPeripheral, advertisementData: [String : Any], rssi RSSI: NSNumber) {
-//		print("\n!! did discover peripheral with advertisement data: \(advertisementData)\n")
 		
 		if 
 			let seviceIDs = advertisementData[CBAdvertisementDataServiceUUIDsKey] as? [CBUUID],
@@ -108,12 +80,11 @@ extension BindingAuthenticator: CBCentralManagerDelegate {
 		{
 			discoveredPeripheral = peripheral
 			centralManager?.connect(peripheral)
-			print("Whorayy did discover: \(identifier)")
 		}
 	}
 
 	public func centralManager(_ central: CBCentralManager, didFailToConnect peripheral: CBPeripheral, error: Error?) {
-		print("--- did fail to connect: \(error)")
+		// TODO: Handle error
 	}
 
 	public func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
@@ -136,13 +107,10 @@ extension BindingAuthenticator: CBPeripheralDelegate {
 	}
 	
 	public func peripheral(_ peripheral: CBPeripheral, didDiscoverCharacteristicsFor service: CBService, error: Error?) {
-		// Again, we loop through the array, just in case and check if it's the right one
 		guard let serviceCharacteristics = service.characteristics else { return }
 		for characteristic in serviceCharacteristics where characteristic.uuid.uuidString == self.characteristicID {
-			// If it is, subscribe to it
 			transferCharacteristic = characteristic
 			peripheral.setNotifyValue(true, for: characteristic)
-			
 			changeState(state: DeviceBindingAuthenticatorSynState(peripheral: peripheral, service: service, characteristic: characteristic))
 		}
 	}

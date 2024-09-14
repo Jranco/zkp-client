@@ -7,6 +7,7 @@
 
 import Foundation
 
+/// WebSocket connection state with regard to its lifecycle.
 enum WSConnectionState {
 	case idle
 	case started

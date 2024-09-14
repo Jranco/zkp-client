@@ -90,11 +90,11 @@ struct KeychainManager: SecureStorageManaging {
 	}
 
 	func remove(key: String) throws {
-
+		// TODO:
 	}
 	
 	func removeAllValues() throws {
-
+		// TODO:
 	}
 	
 	// MARK: - Private methods
@@ -103,7 +103,6 @@ struct KeychainManager: SecureStorageManaging {
 		let query: [String: Any] = [
 			 kSecClass as String: kSecClassGenericPassword,
 			 kSecAttrService as String: key as CFString,
-//			 kSecMatchLimit as String: kSecMatchLimitOne,
 			 kSecAttrSynchronizable as String: kCFBooleanFalse!,
 			 kSecAttrAccount as String: userID as CFString
 		 ]

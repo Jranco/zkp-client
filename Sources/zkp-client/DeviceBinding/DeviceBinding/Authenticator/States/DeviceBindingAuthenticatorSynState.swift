@@ -54,7 +54,6 @@ class DeviceBindingAuthenticatorSynState: DeviceBindingAuthenticatorBaseState {
 	}
 
 	override func peripheral(_ peripheral: CBPeripheral, didWriteValueFor characteristic: CBCharacteristic, error: Error?) {
-		print("did write value with error: \(error)")
 		if let error = error {
 			context?.changeState(state: DeviceBindingAuthenticatorSynFailedState(error: SynError.failedToSendData(underlyingError: error)))
 			return
@@ -83,8 +82,6 @@ class DeviceBindingAuthenticatorSynState: DeviceBindingAuthenticatorBaseState {
 		} else {
 			do {
 				let decoded = try JSONDecoder().decode(DeviceBindingMessageDTO.self, from: ackData)
-				print("- did receive ack: \(decoded)")
-				
 				if
 					let decoded = try? JSONDecoder().decode(DeviceBindingAckPayload.self, from: decoded.payload),
 					decoded.timestamp == self.currentDate.timeIntervalSince1970 + 1
@@ -97,7 +94,7 @@ class DeviceBindingAuthenticatorSynState: DeviceBindingAuthenticatorBaseState {
 				}
 
 			} catch {
-				print("error acking: \(error)")
+				// TODO: Handle error
 			}
 		}
 	}

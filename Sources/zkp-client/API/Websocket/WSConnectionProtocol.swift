@@ -16,6 +16,7 @@ protocol WSConnectionProtocol {
 	var incomingMessagePublisher: AnyPublisher<PayloadType, Error> { get }
 	/// Publisher emitting state updates received of an open web-socket connection.
 	var statePublisher: AnyPublisher<WSConnectionState, Never> { get }
+	/// WebSocket connection state with regard to its lifecycle.
 	var state: WSConnectionState { get }
 	/// Triggers a handshake establishing the web-socket connection.
 	func start()
