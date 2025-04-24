@@ -139,7 +139,7 @@ public class FiatShamir: ZeroKnowledgeProtocol {
 		let r = BigUInt.randomInteger(withExactWidth: keyManager.coprimeWidth/2)
 		let initiatingRandomNum = r.power(2, modulus: n)
 		self.initiatingRandomNum = r
-		
+
 		let authPayload = AuthenticationPayload(protocolType: ZkpFlavor.fiatShamir(config: configuration).name,
 												payload: payload,
 												userID: userID,
@@ -148,13 +148,13 @@ public class FiatShamir: ZeroKnowledgeProtocol {
 												challengeResponse: Data())
 		let payload = DeviceBindingPayload(newDeviceKey: otherDeviceKey, authenticationPayload: authPayload)
 		let encodedPayload = try JSONEncoder().encode(payload)
-		
+
 		/// Send an authentication request initiating the `zkp` verification process.
 		deviceBindingConnection.sendMessage(message: String(data: encodedPayload, encoding: .utf8) ?? "could not encode payload")
 	}
 
 	// MARK: - ZKPDevicePKProvider
-	
+
 	func fetchDeviceKey() async throws -> Data {
 		let key = try await self.keyManager.generateDevicePublicKey()
 		let keyData = try JSONEncoder().encode(key)
@@ -216,9 +216,9 @@ private extension FiatShamir {
 				case .pending: break
 				case .didVerifyWithSuccess:
 					self?.authenticationConnection.stop()
-				case .didFail:
+				case .didFailToVerify:
 					self?.authenticationConnection.stop()
-				case .inProgress:
+				case .verificationInProgress:
 
 					if 
 						let self = self,
@@ -240,9 +240,9 @@ private extension FiatShamir {
 				case .pending: break
 				case .didVerifyWithSuccess:
 					self?.authenticationConnection.stop()
-				case .didFail:
+				case .didFailToVerify:
 					self?.authenticationConnection.stop()
-				case .inProgress:
+				case .verificationInProgress:
 
 					if
 						let self = self,

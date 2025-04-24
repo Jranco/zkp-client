@@ -12,7 +12,7 @@ let package = Package(
             targets: ["zkp-client"]),
     ],
 	dependencies: [
-		.package(url: "https://github.com/attaswift/BigInt.git", from: "5.3.0"),
+		.package(url: "https://github.com/attaswift/BigInt.git", exact: "5.3.0")
 	],
     targets: [
         .target(

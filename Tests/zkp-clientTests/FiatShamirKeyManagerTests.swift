@@ -29,7 +29,7 @@ final class FiatShamirKeyManagerTests: XCTestCase {
 		
 //		measureMetrics([.wallClockTime], automaticallyStartMeasuring: true) {
 		print("did statr: \(Date())")
-		let key = try await FiatShamirKeyManager(coprimeWidth: 1024, secretManager: SecretManagerMock(), userID: "tom1").generateDevicePublicKey()
+		let key = try await FiatShamirKeyManager(coprimeWidth: 2048, secretManager: SecretManagerMock(), userID: "tom1").generateDevicePublicKey()
 		print("key: \(key)")
 
 		print("did end: \(Date())")

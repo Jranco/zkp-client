@@ -16,7 +16,7 @@ import Foundation
 struct AuthenticationPayload<Key: Codable>: Codable {
 	/// The name of the `zero-knowledge` protocol.
 	var protocolType: String
-	/// The registration payload required by the target api.
+	/// The authentication payload required by the target api.
 	var payload: Data
 	/// Unique user identifier.
 	var userID: String

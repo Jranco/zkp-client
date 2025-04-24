@@ -18,8 +18,8 @@ extension WSUserVerificationResponse {
 	/// State of the verification.
 	enum State: String, Codable {
 		case pending
-		case inProgress
-		case didFail
+		case verificationInProgress
+		case didFailToVerify
 		case didVerifyWithSuccess
 	}
 }

@@ -8,7 +8,7 @@
 import Foundation
 
 /// A protocol defining requirements of an HTTP request.
-protocol RestRequestProtocol {
+public protocol RestRequestProtocol {
 	var base: String { get }
 	var path: String { get }
 	var queryItems: [URLQueryItem]? { get }
@@ -16,7 +16,7 @@ protocol RestRequestProtocol {
 	var body: Data? { get }
 }
 
-extension RestRequestProtocol {
+public extension RestRequestProtocol {
 	func execute() async throws -> (Data, URLResponse) {
 		guard let url = URL(string: base+path) else {
 			throw RestRequestError.malformedURLPath
@@ -24,7 +24,7 @@ extension RestRequestProtocol {
 		var request = URLRequest(url: url)
 		request.httpMethod = method.rawValue
 		request.httpBody = body
-		request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+		request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 		let data = try await URLSession.shared.data(for: request)
 		return data
 	}
